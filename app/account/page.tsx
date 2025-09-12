@@ -13,7 +13,6 @@ export default function AccountPage() {
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [loading2FA, setLoading2FA] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [logoutLoading, setLogoutLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
   React.useEffect(() => {

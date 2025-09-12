@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
-        <title>Schirmer's Admin</title>
+  <title>Schirmer&apos;s Admin</title>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full flex flex-col`}
