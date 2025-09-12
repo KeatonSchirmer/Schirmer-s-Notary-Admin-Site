@@ -24,7 +24,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`http://localhost:5000/clients/${clientId}`, {
+        const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}`, {
           headers: { "X-User-Id": String(userId) },
         });
         if (!res.ok) throw new Error("Failed to load client details");
@@ -37,7 +37,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     }
     async function fetchServiceHistory() {
       try {
-        const res = await fetch(`http://localhost:5000/clients/${clientId}/history`, {
+        const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}/history`, {
           headers: { "X-User-Id": String(userId) },
         });
         if (res.ok) {
@@ -55,7 +55,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     setEditLoading(true);
     setEditError("");
     try {
-      const res = await fetch(`http://localhost:5000/contacts/contacts/${clientId}`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/contacts/contacts/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify(editData),
@@ -77,7 +77,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     setDeleteLoading(true);
     setEditError("");
     try {
-      const res = await fetch(`http://localhost:5000/contacts/${clientId}`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/contacts/${clientId}`, {
         method: "DELETE",
         headers: { "X-User-Id": String(userId) },
       });

@@ -25,7 +25,7 @@ export default function RequestsPage() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("http://localhost:5000/jobs/", {
+        const res = await fetch("https://schirmer-s-notary-backend.onrender.com/jobs/", {
           headers: {
             "Content-Type": "application/json",
             "X-User-Id": String(userId),

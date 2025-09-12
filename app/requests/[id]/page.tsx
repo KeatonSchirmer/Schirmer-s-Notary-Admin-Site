@@ -26,15 +26,15 @@ export default function RequestDetailsPage({ params }: { params: Promise<{ id: s
       setLoading(true);
       setError("");
       try {
-        await fetch("http://localhost:5000/jobs/admin/accepted/update-status", {
+        await fetch("https://schirmer-s-notary-backend.onrender.com/jobs/admin/accepted/update-status", {
           method: "POST",
           headers: { "Content-Type": "application/json" }
         });
       } catch {}
       let endpoints = [
-        `http://localhost:5000/jobs/admin/request/${id}`,
-        `http://localhost:5000/jobs/admin/accepted/${id}`,
-        `http://localhost:5000/jobs/admin/denied/${id}`
+        `https://schirmer-s-notary-backend.onrender.com/jobs/admin/request/${id}`,
+        `https://schirmer-s-notary-backend.onrender.com/jobs/admin/accepted/${id}`,
+        `https://schirmer-s-notary-backend.onrender.com/jobs/admin/denied/${id}`
       ];
       let found = false;
       for (const endpoint of endpoints) {
@@ -65,7 +65,7 @@ export default function RequestDetailsPage({ params }: { params: Promise<{ id: s
     setActionLoading(true);
     setActionError("");
     try {
-      const res = await fetch(`http://localhost:5000/jobs/admin/request/${id}/${action}`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/jobs/admin/request/${id}/${action}`, {
         method: "POST",
         headers: { 
             "Content-Type": "application/json",
@@ -90,7 +90,7 @@ export default function RequestDetailsPage({ params }: { params: Promise<{ id: s
     setActionLoading(true);
     setActionError("");
     try {
-      const res = await fetch(`http://localhost:5000/jobs/admin/accepted/${id}/edit`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/jobs/admin/accepted/${id}/edit`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

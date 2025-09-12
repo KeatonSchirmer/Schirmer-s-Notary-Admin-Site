@@ -30,7 +30,7 @@ export default function CalendarPage() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("http://localhost:5000/calendar/local", {
+        const res = await fetch("https://schirmer-s-notary-backend.onrender.com/calendar/local", {
           headers: {
             "Content-Type": "application/json",
             "X-User-Id": String(userId),

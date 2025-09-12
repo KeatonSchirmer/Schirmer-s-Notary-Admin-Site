@@ -33,7 +33,7 @@ export default function FinancesPage() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("http://localhost:5000/finances/", {
+        const res = await fetch("https://schirmer-s-notary-backend.onrender.com/finances/", {
           headers: {
             "Content-Type": "application/json",
             "X-User-Id": String(userId),
@@ -54,7 +54,7 @@ export default function FinancesPage() {
     if (!userId) return;
     setAddLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/finances/', {
+      const res = await fetch('https://schirmer-s-notary-backend.onrender.com/finances/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

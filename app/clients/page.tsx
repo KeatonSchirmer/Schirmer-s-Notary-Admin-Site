@@ -35,7 +35,7 @@ const ClientsPage: React.FC = () => {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("http://localhost:5000/clients/all", {
+        const res = await fetch("https://schirmer-s-notary-backend.onrender.com/clients/all", {
           headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         });
         const data = await res.json();
@@ -71,7 +71,7 @@ const ClientsPage: React.FC = () => {
 
   const handleAddClient = async () => {
     try {
-      const res = await fetch("http://localhost:5000/clients/add", {
+      const res = await fetch("https://schirmer-s-notary-backend.onrender.com/clients/add", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify({ name: clientName, email: clientEmail, company }),

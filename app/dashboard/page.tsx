@@ -34,13 +34,13 @@ export default function Dashboard() {
       setLoading(true);
       setError("");
       try {
-        const appointmentsRes = await fetch("http://localhost:5000/calendar/local", {
+        const appointmentsRes = await fetch("https://schirmer-s-notary-backend.onrender.com/calendar/local", {
           headers: { "X-User-Id": String(userId) },
         });
         if (!appointmentsRes.ok) throw new Error("Failed to load appointments");
         const appointmentsData = await appointmentsRes.json();
 
-        const requestsRes = await fetch("http://localhost:5000/jobs/", {
+        const requestsRes = await fetch("https://schirmer-s-notary-backend.onrender.com/jobs/", {
           headers: { "X-User-Id": String(userId) },
         });
         if (!requestsRes.ok) throw new Error("Failed to load requests");
@@ -61,7 +61,7 @@ export default function Dashboard() {
     async function fetchMileage() {
       if (!userId) return;
       try {
-        const mileageRes = await fetch("http://localhost:5000/mileage/weekly", {
+        const mileageRes = await fetch("https://schirmer-s-notary-backend.onrender.com/mileage/weekly", {
           headers: { "X-User-Id": String(userId) },
         });
         if (!mileageRes.ok) throw new Error("Failed to load weekly mileage");

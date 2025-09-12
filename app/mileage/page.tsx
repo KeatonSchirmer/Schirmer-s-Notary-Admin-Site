@@ -27,7 +27,7 @@ export default function MileagePage() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("http://localhost:5000/mileage/", {
+        const res = await fetch("https://schirmer-s-notary-backend.onrender.com/mileage/", {
           headers: { "X-User-Id": String(userId) }, // Use userId from localStorage
         });
         const data = await res.json();
@@ -42,7 +42,7 @@ export default function MileagePage() {
       setWeeklyLoading(true);
       setWeeklyError("");
       try {
-        const weeklyRes = await fetch("http://localhost:5000/mileage/weekly", {
+        const weeklyRes = await fetch("https://schirmer-s-notary-backend.onrender.com/mileage/weekly", {
           headers: { "X-User-Id": String(userId) }, // Use userId from localStorage
         });
         const data = await weeklyRes.json();

@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from "react";
-import { Card, CardContent } from "../../../components/ui/card";
-import { Input } from "../../../components/ui/input";
-import { Button } from "../../../components/ui/button";
+import { Card, CardContent } from "../../ui/card";
+import { Input } from "../../ui/input";
+import { Button } from "../../ui/button";
 
 export default function AccountPage() {
   const [email, setEmail] = useState("");
@@ -19,9 +19,8 @@ export default function AccountPage() {
   React.useEffect(() => {
     const storedId = localStorage.getItem("user_id");
     setUserId(storedId);
-    // Fetch 2FA status from backend on mount
     if (storedId) {
-      fetch(`http://localhost:5000/auth/twofa/status`, {
+      fetch(`https://schirmer-s-notary-backend.onrender.com/auth/twofa/status`, {
         headers: { "X-User-Id": String(storedId) },
       })
         .then((res) => res.json())
@@ -35,7 +34,7 @@ export default function AccountPage() {
     setLoadingEmail(true);
     setMessage("");
     try {
-      const res = await fetch(`http://localhost:5000/profile/update`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/profile/update`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -61,7 +60,7 @@ export default function AccountPage() {
     setLoadingPassword(true);
     setMessage("");
     try {
-      const res = await fetch(`http://localhost:5000/auth/change-password`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/auth/change-password`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -88,7 +87,7 @@ export default function AccountPage() {
     setMessage("");
     try {
       // Always send code: "123456" for dummy backend
-      const res = await fetch(`http://localhost:5000/auth/twofa`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/auth/twofa`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -118,7 +117,7 @@ export default function AccountPage() {
     setDeleteLoading(true);
     setMessage("");
     try {
-      const res = await fetch(`http://localhost:5000/profile/delete`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/profile/delete`, {
         method: "DELETE",
         headers: {
           "X-User-Id": String(userId),
