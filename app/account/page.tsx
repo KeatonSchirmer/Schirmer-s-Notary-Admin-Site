@@ -13,6 +13,7 @@ export default function AccountPage() {
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [loading2FA, setLoading2FA] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // Removed unused logoutLoading state
   const [userId, setUserId] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -135,10 +136,10 @@ export default function AccountPage() {
       setDeleteLoading(false);
     }
   };
-
   const handleLogout = () => {
     localStorage.removeItem("user_id");
     window.location.href = "/";
+  };
   };
 
   return (
@@ -223,10 +224,9 @@ export default function AccountPage() {
             </Button>
             <Button
               onClick={handleLogout}
-              disabled={logoutLoading}
               className="bg-red-600 text-white mt-4"
             >
-              {logoutLoading ? "Logging out..." : "Log Out"}
+              Log Out
             </Button>
           </div>
 
