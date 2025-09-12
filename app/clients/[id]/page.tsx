@@ -2,9 +2,7 @@
 import React, { useEffect, useState } from "react";
 
 export default function ClientDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  // Fix: params should be { id: string }
-  // Remove Promise type, use Next.js convention
-  // Fix: Await params if it's a Promise
+  // ...existing code...
   const [clientId, setClientId] = useState<string>("");
   useEffect(() => {
     (async () => {
@@ -54,9 +52,9 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
           headers: { "X-User-Id": String(userId) },
         });
         if (!res.ok) throw new Error("Failed to load client details");
-        const data = await res.json();
+        const data: Client = await res.json();
         setClient(data);
-      } catch (err) {
+      } catch (err: unknown) {
         setError((err instanceof Error ? err.message : String(err)) || "Failed to load client details");
       }
       setLoading(false);
@@ -67,7 +65,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
           headers: { "X-User-Id": String(userId) },
         });
         if (res.ok) {
-          const data = await res.json();
+          const data: { history: HistoryItem[] } = await res.json();
           setHistory(data.history || []);
         }
       } catch {
