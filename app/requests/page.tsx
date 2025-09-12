@@ -40,7 +40,6 @@ export default function RequestsPage() {
           setRequests([]);
         }
       } catch (err) {
-      } catch (err) {
         setError("Failed to load requests");
       }
       setLoading(false);

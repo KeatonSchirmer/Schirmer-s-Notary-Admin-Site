@@ -33,7 +33,6 @@ export default function MileagePage() {
         const data = await res.json();
         setEntries(data.entries || []);
       } catch (err) {
-      } catch (err) {
         setError("Failed to load mileage entries");
       } finally {
         setLoading(false);
@@ -48,7 +47,6 @@ export default function MileagePage() {
         });
         const data = await weeklyRes.json();
         setWeeklyMileage(data.weekly_mileage ?? 0);
-      } catch (err) {
       } catch (err) {
         setWeeklyError("Failed to load weekly mileage");
       } finally {
