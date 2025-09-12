@@ -1,5 +1,4 @@
 "use client";
-import { request } from "https";
 import React, { useEffect, useState } from "react";
 
 // Example event type
@@ -39,8 +38,8 @@ export default function CalendarPage() {
         if (!res.ok) throw new Error("Failed to load events");
         const data = await res.json();
         setEvents(data.events || []);
-      } catch (err: any) {
-        setError(err.message || "Failed to load events");
+      } catch (err: unknown) {
+        setError((err instanceof Error ? err.message : String(err)) || "Failed to load events");
       }
       setLoading(false);
     }

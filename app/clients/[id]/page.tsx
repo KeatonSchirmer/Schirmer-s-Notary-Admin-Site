@@ -69,14 +69,12 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
           setHistory(data.history || []);
         }
       } catch {
-        // Optionally handle error
       }
     }
     fetchClientDetails();
     fetchServiceHistory();
   }, [clientId, userId]);
 
-  // Edit contact handler
   const handleEditContact = async () => {
     setEditLoading(true);
     setEditError("");
