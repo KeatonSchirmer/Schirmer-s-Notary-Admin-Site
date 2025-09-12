@@ -48,7 +48,7 @@ export default function RequestDetailsPage({ params }: { params: Promise<{ id: s
           headers: { "Content-Type": "application/json" }
         });
       } catch {}
-      let endpoints = [
+      const endpoints = [
         `https://schirmer-s-notary-backend.onrender.com/jobs/admin/request/${id}`,
         `https://schirmer-s-notary-backend.onrender.com/jobs/admin/accepted/${id}`,
         `https://schirmer-s-notary-backend.onrender.com/jobs/admin/denied/${id}`

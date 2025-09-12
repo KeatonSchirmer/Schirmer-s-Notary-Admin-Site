@@ -43,6 +43,7 @@ export default function FinancesPage() {
         const data = await res.json();
         setFinances(Array.isArray(data) ? data : []);
       } catch (err) {
+      } catch (err) {
         setError("Failed to load finances");
       }
       setLoading(false);

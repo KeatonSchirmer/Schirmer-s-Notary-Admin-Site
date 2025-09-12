@@ -41,6 +41,7 @@ const ClientsPage: React.FC = () => {
         const data = await res.json();
         setClients(data.clients || []);
       } catch (err) {
+      } catch (err) {
         setError("Failed to load clients");
       }
       setLoading(false);

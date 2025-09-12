@@ -57,7 +57,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         const data = await res.json();
         setClient(data);
       } catch (err: any) {
-        setError(err.message || "Failed to load client details");
+        setError((err as Error).message || "Failed to load client details");
       }
       setLoading(false);
     }
@@ -70,7 +70,9 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
           const data = await res.json();
           setHistory(data.history || []);
         }
-      } catch {}
+      } catch (err) {
+        // Optionally handle error
+      }
     }
     fetchClientDetails();
     fetchServiceHistory();
@@ -129,7 +131,6 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       }
     } catch (err) {
       setEditError("Failed to delete contact. Network or server error.");
-      console.error("Delete contact exception:", err);
     }
     setDeleteLoading(false);
   };
