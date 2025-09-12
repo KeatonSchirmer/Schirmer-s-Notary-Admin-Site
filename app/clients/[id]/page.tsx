@@ -2,13 +2,39 @@
 import React, { useEffect, useState } from "react";
 
 export default function ClientDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: clientId } = React.use(params);
-  const [client, setClient] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  // Fix: params should be { id: string }
+  // Remove Promise type, use Next.js convention
+  // Fix: Await params if it's a Promise
+  const [clientId, setClientId] = useState<string>("");
+  useEffect(() => {
+    (async () => {
+      const resolved = await params;
+      setClientId(resolved.id);
+    })();
+  }, [params]);
+  type Client = {
+    id: string;
+    name: string;
+    email: string;
+    company?: string;
+    phone?: string;
+  };
+  type HistoryItem = {
+    service: string;
+    date: string;
+  };
+  const [client, setClient] = useState<Client | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editMode, setEditMode] = useState(false);
-  const [editData, setEditData] = useState<any>({});
+  type EditData = {
+    name?: string;
+    email?: string;
+    company?: string;
+    phone?: string;
+  };
+  const [editData, setEditData] = useState<EditData>({});
   const [editLoading, setEditLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [editError, setEditError] = useState("");
@@ -62,7 +88,14 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       });
       if (res.ok) {
         setEditMode(false);
-        setClient({ ...client, ...editData });
+        setClient((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            ...editData,
+            id: prev.id // always preserve id
+          };
+        });
       } else {
         setEditError("Failed to update contact.");
       }
@@ -205,7 +238,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
 }
 
 export type ContactPoint = {
-  id: any;
+  id: string;
   name: string;
   email: string;
   phone: string;
@@ -238,7 +271,7 @@ function ContactPoints({ contactId }: { contactId: string }) {
     setLoading(false);
   };
 
-  const removeContactPoint = async (id: any) => {
+  const removeContactPoint = async (id: string) => {
     setLoading(true);
     const res = await fetch(`http://127.0.0.1:5000/contacts/contact_points/${id}`, { method: "DELETE" });
     if (res.ok) {

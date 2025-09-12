@@ -5,7 +5,24 @@ import { useRouter } from "next/navigation";
 export default function RequestDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = React.use(params);
-  const [request, setRequest] = useState<any>(null);
+  type RequestDetails = {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    service: string;
+    urgency: string;
+    notes: string;
+    progress: string;
+    service_date?: string;
+    location?: string;
+    status?: string;
+    document_type?: string;
+    signers?: string;
+    witnesses?: number;
+    wording?: string;
+  };
+  const [request, setRequest] = useState<RequestDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);

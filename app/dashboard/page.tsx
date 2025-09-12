@@ -48,8 +48,12 @@ export default function Dashboard() {
 
         setAppointments(appointmentsData.events || []);
         setRequests(requestsData.requests || requestsData || []);
-      } catch (err: any) {
-        setError(err.message || "Failed to load dashboard data");
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message || "Failed to load dashboard data");
+        } else {
+          setError("Failed to load dashboard data");
+        }
       } finally {
         setLoading(false);
       }
@@ -73,9 +77,13 @@ export default function Dashboard() {
           setMileage(0);
           setMileageError("");
         }
-      } catch (err: any) {
+      } catch (err) {
         setMileage(0);
-        setMileageError(err.message || "Failed to load weekly mileage");
+        if (err instanceof Error) {
+          setMileageError(err.message || "Failed to load weekly mileage");
+        } else {
+          setMileageError("Failed to load weekly mileage");
+        }
       }
     }
     fetchMileage();
