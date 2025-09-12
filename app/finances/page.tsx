@@ -42,7 +42,7 @@ export default function FinancesPage() {
         if (!res.ok) throw new Error("No transactions found");
         const data = await res.json();
         setFinances(Array.isArray(data) ? data : []);
-      } catch (err) {
+      } catch {
         setError("Failed to load finances");
       }
       setLoading(false);

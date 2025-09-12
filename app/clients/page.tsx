@@ -40,7 +40,7 @@ const ClientsPage: React.FC = () => {
         });
         const data = await res.json();
         setClients(data.clients || []);
-      } catch (err) {
+      } catch {
         setError("Failed to load clients");
       }
       setLoading(false);
