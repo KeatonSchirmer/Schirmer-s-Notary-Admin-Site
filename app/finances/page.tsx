@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import jsPDF from "jspdf"; // <-- Add this import
 
 type Finance = {
   id: number;
@@ -90,16 +91,48 @@ export default function FinancesPage() {
   const totalExpenses = expenses.reduce((sum, f) => sum + f.amount, 0);
   const netIncome = totalEarnings - totalExpenses;
 
+  // PDF Download Handler
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Finances Summary", 10, 15);
+
+    doc.setFontSize(12);
+    doc.text(`Earnings: $${totalEarnings.toFixed(2)}`, 10, 25);
+    doc.text(`Expenses: $${totalExpenses.toFixed(2)}`, 10, 32);
+    doc.text(`Net Income: $${netIncome.toFixed(2)}`, 10, 39);
+
+    doc.text("Transactions:", 10, 49);
+    finances.forEach((f, i) => {
+      doc.text(
+        `${f.date} - ${f.type === "expense" ? "Expense" : "Earning"} - ${f.category} - $${f.amount.toFixed(2)}${f.description ? " - " + f.description : ""}`,
+        10,
+        55 + i * 8
+      );
+    });
+
+    doc.save("finances.pdf");
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <h1 className="text-2xl font-bold mb-6">Finances</h1>
-      <button
-        className="fixed bottom-8 right-8 bg-green-600 text-white px-6 py-4 rounded-full shadow-lg z-50"
-        style={{ boxShadow: "0 4px 16px rgba(34,197,94,0.3)" }}
-        onClick={() => setShowExpenseModal(true)}
-      >
-        + Add Expense
-      </button>
+      <div className="flex gap-4 mb-6">
+        <button
+          className="bg-green-600 text-white px-6 py-4 rounded-full shadow-lg"
+          style={{ boxShadow: "0 4px 16px rgba(34,197,94,0.3)" }}
+          onClick={() => setShowExpenseModal(true)}
+        >
+          + Add Expense
+        </button>
+        <button
+          className="bg-blue-600 text-white px-6 py-4 rounded-full shadow-lg"
+          style={{ boxShadow: "0 4px 16px rgba(59,130,246,0.3)" }}
+          onClick={handleDownloadPDF}
+        >
+          Download PDF
+        </button>
+      </div>
       {showExpenseModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-gray-400 bg-opacity-40 z-50">
           <div className="bg-white p-6 rounded-2xl shadow w-full max-w-md">

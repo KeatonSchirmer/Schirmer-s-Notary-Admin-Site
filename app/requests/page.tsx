@@ -56,7 +56,7 @@ export default function RequestsPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="text-2xl font-bold mb-6">Requests</h1>
+      <h1 className="text-2xl font-bold mb-6">Jobs</h1>
       <div className="mb-4 flex gap-2">
         <button
           className={`px-3 py-1 rounded ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}

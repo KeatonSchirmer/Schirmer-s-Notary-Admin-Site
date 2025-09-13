@@ -117,7 +117,6 @@ export default function RequestDetailsPage({ params }: { params: Promise<{ id: s
       });
       if (res.ok) {
         setShowEditModal(false);
-        // Refetch request details to update UI
         window.location.reload();
       } else {
         const data = await res.json();
@@ -135,7 +134,7 @@ export default function RequestDetailsPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Request Details</h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">Job Details</h1>
       <div className="bg-white rounded-2xl shadow p-6 mb-6">
         <p><span className="font-semibold">Name:</span> {request.name}</p>
         <p><span className="font-semibold">Email:</span> {request.email}</p>
