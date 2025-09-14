@@ -10,6 +10,13 @@ type EventItem = {
   source?: "local" | "google";
 };
 
+type GoogleCalendarEvent = {
+  id: string;
+  summary?: string;
+  start: { dateTime?: string; date?: string };
+  location?: string;
+};
+
 const API_BASE = "https://schirmer-s-notary-backend.onrender.com";
 
 export default function CalendarPage() {
@@ -18,8 +25,6 @@ export default function CalendarPage() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [userId, setUserId] = React.useState<string | null>(null);
   const [officeStart, setOfficeStart] = useState(9);
   const [officeEnd, setOfficeEnd] = useState(21);
@@ -27,7 +32,6 @@ export default function CalendarPage() {
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [eventForm, setEventForm] = useState<{ name: string; date: string; location: string }>({ name: "", date: "", location: "" });
   const [googleEvents, setGoogleEvents] = useState<EventItem[]>([]);
-  const [googleToken, setGoogleToken] = useState<string | null>(null);
 
   React.useEffect(() => {
     const storedId = localStorage.getItem("user_id");
@@ -36,8 +40,6 @@ export default function CalendarPage() {
 
   useEffect(() => {
     async function fetchEvents() {
-      setLoading(true);
-      setError("");
       try {
         const res = await fetch(`${API_BASE}/calendar/local`, {
           headers: {
@@ -48,17 +50,15 @@ export default function CalendarPage() {
         if (!res.ok) throw new Error("Failed to load events");
         const data = await res.json();
         setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
-      } catch (err: unknown) {
-        setError((err instanceof Error ? err.message : String(err)) || "Failed to load events");
+      } catch {
+        // Optionally handle error
       }
-      setLoading(false);
     }
     if (userId) fetchEvents();
   }, [userId]);
 
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
-      setGoogleToken(tokenResponse.access_token);
       const res = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events',
         {
@@ -68,10 +68,10 @@ export default function CalendarPage() {
         }
       );
       const data = await res.json();
-      const mappedEvents = (data.items || []).map((e: any) => ({
+      const mappedEvents = (data.items as GoogleCalendarEvent[] || []).map((e) => ({
         id: e.id,
         name: e.summary || "No Title",
-        start_date: e.start.dateTime || e.start.date,
+        start_date: e.start.dateTime || e.start.date || "",
         location: e.location || "",
         source: "google" as const,
       }));
@@ -185,24 +185,23 @@ export default function CalendarPage() {
     setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
   };
 
-function getSlotsForDate(date: string) {
-  const slots: { time: string; blocked: boolean; event?: EventItem }[] = [];
-  for (let hour = officeStart; hour < officeEnd; hour++) {
-    const slotTime = `${String(hour).padStart(2, "0")}:00`;
-    // Find event that blocks this slot
-    const event = mergedEvents.find(e => {
-      const eventDate = e.start_date.slice(0, 10);
-      const eventHour = new Date(e.start_date).getHours();
-      return eventDate === date && eventHour === hour;
-    });
-    slots.push({
-      time: slotTime,
-      blocked: !!event,
-      event,
-    });
+  function getSlotsForDate(date: string) {
+    const slots: { time: string; blocked: boolean; event?: EventItem }[] = [];
+    for (let hour = officeStart; hour < officeEnd; hour++) {
+      const slotTime = `${String(hour).padStart(2, "0")}:00`;
+      const event = mergedEvents.find(e => {
+        const eventDate = e.start_date.slice(0, 10);
+        const eventHour = new Date(e.start_date).getHours();
+        return eventDate === date && eventHour === hour;
+      });
+      slots.push({
+        time: slotTime,
+        blocked: !!event,
+        event,
+      });
+    }
+    return slots;
   }
-  return slots;
-}
 
   return (
     <GoogleOAuthProvider clientId="YOUR_GOOGLE_CLIENT_ID">
@@ -235,29 +234,29 @@ function getSlotsForDate(date: string) {
         </div>
 
         <div className="mb-4 flex gap-4 items-center">
-        <label>
-          Office Start:
-          <input
-            type="number"
-            min={0}
-            max={23}
-            value={officeStart}
-            onChange={e => setOfficeStart(Number(e.target.value))}
-            className="ml-2 w-16 border rounded"
-          />
-        </label>
-        <label>
-          Office End:
-          <input
-            type="number"
-            min={officeStart + 1}
-            max={24}
-            value={officeEnd}
-            onChange={e => setOfficeEnd(Number(e.target.value))}
-            className="ml-2 w-16 border rounded"
-          />
-        </label>
-      </div>
+          <label>
+            Office Start:
+            <input
+              type="number"
+              min={0}
+              max={23}
+              value={officeStart}
+              onChange={e => setOfficeStart(Number(e.target.value))}
+              className="ml-2 w-16 border rounded"
+            />
+          </label>
+          <label>
+            Office End:
+            <input
+              type="number"
+              min={officeStart + 1}
+              max={24}
+              value={officeEnd}
+              onChange={e => setOfficeEnd(Number(e.target.value))}
+              className="ml-2 w-16 border rounded"
+            />
+          </label>
+        </div>
 
         <div className="grid grid-cols-7 text-center font-medium text-gray-600 mb-2">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
@@ -309,32 +308,32 @@ function getSlotsForDate(date: string) {
         </div>
 
         {selectedDate && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">
-            Time Slots for {selectedDate.toDateString()}
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {getSlotsForDate(selectedDate.toISOString().slice(0, 10)).map((slot, idx) => (
-              <div
-                key={idx}
-                className={`p-2 rounded border flex flex-col items-center ${
-                  slot.blocked
-                    ? "bg-red-100 border-red-400 text-red-700"
-                    : "bg-green-100 border-green-400 text-green-700"
-                }`}
-              >
-                <span className="font-semibold">{slot.time}</span>
-                {slot.blocked && (
-                  <span className="text-xs mt-1">
-                    Blocked by: {slot.event?.name} {slot.event?.source === "google" ? "(Google)" : ""}
-                  </span>
-                )}
-                {!slot.blocked && <span className="text-xs mt-1">Available</span>}
-              </div>
-            ))}
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3">
+              Time Slots for {selectedDate.toDateString()}
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {getSlotsForDate(selectedDate.toISOString().slice(0, 10)).map((slot, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2 rounded border flex flex-col items-center ${
+                    slot.blocked
+                      ? "bg-red-100 border-red-400 text-red-700"
+                      : "bg-green-100 border-green-400 text-green-700"
+                  }`}
+                >
+                  <span className="font-semibold">{slot.time}</span>
+                  {slot.blocked && (
+                    <span className="text-xs mt-1">
+                      Blocked by: {slot.event?.name} {slot.event?.source === "google" ? "(Google)" : ""}
+                    </span>
+                  )}
+                  {!slot.blocked && <span className="text-xs mt-1">Available</span>}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
         {showEventModal && (
           <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
