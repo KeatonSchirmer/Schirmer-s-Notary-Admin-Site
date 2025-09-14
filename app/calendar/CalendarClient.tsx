@@ -32,6 +32,8 @@ export default function CalendarPage() {
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [eventForm, setEventForm] = useState<{ name: string; date: string; location: string }>({ name: "", date: "", location: "" });
   const [googleEvents, setGoogleEvents] = useState<EventItem[]>([]);
+  const [availableDays, setAvailableDays] = useState<number[]>([0,1,2,3,4,5,6]);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
   React.useEffect(() => {
     const storedId = localStorage.getItem("user_id");
@@ -51,7 +53,6 @@ export default function CalendarPage() {
         const data = await res.json();
         setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
       } catch {
-        // Optionally handle error
       }
     }
     if (userId) fetchEvents();
@@ -59,6 +60,7 @@ export default function CalendarPage() {
 
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      setGoogleAccessToken(tokenResponse.access_token);
       const res = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events',
         {
@@ -67,6 +69,7 @@ export default function CalendarPage() {
           },
         }
       );
+
       const data = await res.json();
       const mappedEvents = (data.items as GoogleCalendarEvent[] || []).map((e) => ({
         id: e.id,
@@ -96,7 +99,7 @@ export default function CalendarPage() {
       const data2 = await res2.json();
       setEvents((data2.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
     },
-    scope: "https://www.googleapis.com/auth/calendar.readonly",
+    scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
   });
 
   const mergedEvents = [...events, ...googleEvents];
@@ -149,27 +152,75 @@ export default function CalendarPage() {
   const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) return;
+    let newEventId: string | number | undefined;
     if (editingEvent) {
       await fetch(`${API_BASE}/calendar/local/${editingEvent.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify(eventForm),
       });
+      newEventId = editingEvent.id;
     } else {
-      await fetch(`${API_BASE}/calendar/local`, {
+      const res = await fetch(`${API_BASE}/calendar/local`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify(eventForm),
       });
+      const data = await res.json();
+      newEventId = data.id;
     }
     setShowEventModal(false);
     setEditingEvent(null);
+
+    // Automatically sync to Google Calendar if access token is available
+    if (googleAccessToken) {
+      await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${googleAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          summary: eventForm.name,
+          location: eventForm.location,
+          start: { dateTime: eventForm.date },
+          end: {
+            dateTime: new Date(new Date(eventForm.date).getTime() + 45 * 60 * 1000).toISOString()
+          }, // 45-minute slot
+        }),
+      });
+    }
+
     const res = await fetch(`${API_BASE}/calendar/local`, {
       headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
     });
     const data = await res.json();
     setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
   };
+
+  function getSlotsForDate(date: string) {
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getDay();
+    if (!availableDays.includes(dayOfWeek)) return [];
+    const slots: { time: string; blocked: boolean; event?: EventItem }[] = [];
+    for (let hour = officeStart; hour < officeEnd; hour++) {
+      for (let min = 0; min < 60; min += 45) {
+        const slotTime = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+        const slotDateTime = `${date}T${slotTime}`;
+        const event = mergedEvents.find(e => {
+          const eventDate = e.start_date.slice(0, 10);
+          const eventTime = e.start_date.slice(11, 16);
+          return eventDate === date && eventTime === slotTime;
+        });
+        slots.push({
+          time: slotTime,
+          blocked: !!event,
+          event,
+        });
+      }
+    }
+    return slots;
+  }
 
   const handleDeleteEvent = async (eventId: string | number) => {
     if (!userId) return;
@@ -184,207 +235,208 @@ export default function CalendarPage() {
     setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
   };
 
-  function getSlotsForDate(date: string) {
-    const slots: { time: string; blocked: boolean; event?: EventItem }[] = [];
-    for (let hour = officeStart; hour < officeEnd; hour++) {
-      const slotTime = `${String(hour).padStart(2, "0")}:00`;
-      const event = mergedEvents.find(e => {
-        const eventDate = e.start_date.slice(0, 10);
-        const eventHour = new Date(e.start_date).getHours();
-        return eventDate === date && eventHour === hour;
-      });
-      slots.push({
-        time: slotTime,
-        blocked: !!event,
-        event,
-      });
-    }
-    return slots;
-  }
-
   return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <button onClick={() => login()} className="bg-blue-600 text-white px-4 py-2 rounded mb-4">
-          Connect & Sync Google Calendar
+    <div className="min-h-screen bg-gray-50 p-6">
+      <button onClick={() => login()} className="bg-blue-600 text-white px-4 py-2 rounded mb-4">
+        Connect & Sync Google Calendar
+      </button>
+      <button onClick={() => openAddModal()} className="bg-green-600 text-white px-4 py-2 rounded mb-4 ml-2">
+        + Add Event
+      </button>
+      <div className="flex items-center justify-between mb-6">
+        <button
+          onClick={() => changeMonth(-1)}
+          className="px-3 py-1 bg-gray-200 rounded-lg hover:bg-gray-300"
+        >
+          ←
         </button>
-        <button onClick={() => openAddModal()} className="bg-green-600 text-white px-4 py-2 rounded mb-4 ml-2">
-          + Add Event
+        <h1 className="text-xl font-bold text-gray-800">
+          {new Date(currentYear, currentMonth).toLocaleString("default", {
+            month: "long",
+            year: "numeric",
+          })}
+        </h1>
+        <button
+          onClick={() => changeMonth(1)}
+          className="px-3 py-1 bg-gray-200 rounded-lg hover:bg-gray-300"
+        >
+          →
         </button>
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => changeMonth(-1)}
-            className="px-3 py-1 bg-gray-200 rounded-lg hover:bg-gray-300"
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold text-gray-800">
-            {new Date(currentYear, currentMonth).toLocaleString("default", {
-              month: "long",
-              year: "numeric",
-            })}
-          </h1>
-          <button
-            onClick={() => changeMonth(1)}
-            className="px-3 py-1 bg-gray-200 rounded-lg hover:bg-gray-300"
-          >
-            →
-          </button>
-        </div>
+      </div>
 
-        <div className="mb-4 flex gap-4 items-center">
-          <label>
-            Office Start:
-            <input
-              type="number"
-              min={0}
-              max={23}
-              value={officeStart}
-              onChange={e => setOfficeStart(Number(e.target.value))}
-              className="ml-2 w-16 border rounded"
-            />
-          </label>
-          <label>
-            Office End:
-            <input
-              type="number"
-              min={officeStart + 1}
-              max={24}
-              value={officeEnd}
-              onChange={e => setOfficeEnd(Number(e.target.value))}
-              className="ml-2 w-16 border rounded"
-            />
-          </label>
-        </div>
+      <div className="mb-4 flex gap-4 items-center">
+        <label>
+          Office Start:
+          <input
+            type="number"
+            min={0}
+            max={23}
+            value={officeStart}
+            onChange={e => setOfficeStart(Number(e.target.value))}
+            className="ml-2 w-16 border rounded"
+          />
+        </label>
+        <label>
+          Office End:
+          <input
+            type="number"
+            min={officeStart + 1}
+            max={24}
+            value={officeEnd}
+            onChange={e => setOfficeEnd(Number(e.target.value))}
+            className="ml-2 w-16 border rounded"
+          />
+        </label>
+        <label>
+          Days:
+          <div className="flex gap-1 ml-2">
+            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+              <button
+                key={i}
+                type="button"
+                className={`px-2 py-1 rounded ${availableDays.includes(i) ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                onClick={() =>
+                  setAvailableDays(availableDays.includes(i)
+                    ? availableDays.filter(day => day !== i)
+                    : [...availableDays, i])
+                }
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </label>
+      </div>
 
-        <div className="grid grid-cols-7 text-center font-medium text-gray-600 mb-2">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d}>{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {weeks.map((week, wi) =>
-            week.map((day, di) =>
-              day ? (
-                <div
-                  key={`${wi}-${di}`}
-                  onClick={() => openAddModal(`${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`)}
-                  className={`h-20 rounded-xl border flex flex-col items-center justify-start p-1 cursor-pointer transition ${
-                    selectedDate?.getDate() === day &&
-                    selectedDate?.getMonth() === currentMonth
-                      ? "bg-blue-500 text-white border-blue-600"
-                      : "bg-white hover:bg-blue-50 border-gray-200"
-                  }`}
-                >
-                  <span className="text-sm font-semibold">{day}</span>
-                  <div className="mt-1 space-y-0.5 w-full">
-                    {eventsForDate(day).slice(0, 2).map((e) => (
-                      <div
-                        key={e.id}
-                        className={`text-xs truncate rounded px-1 ${e.source === "google" ? "bg-yellow-100 text-yellow-700" : "bg-blue-100 text-blue-700"}`}
-                        onClick={(ev) => { ev.stopPropagation(); openEditModal(e); }}
+      <div className="grid grid-cols-7 text-center font-medium text-gray-600 mb-2">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {weeks.map((week, wi) =>
+          week.map((day, di) =>
+            day ? (
+              <div
+                key={`${wi}-${di}`}
+                onClick={() => openAddModal(`${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`)}
+                className={`h-20 rounded-xl border flex flex-col items-center justify-start p-1 cursor-pointer transition ${
+                  selectedDate?.getDate() === day &&
+                  selectedDate?.getMonth() === currentMonth
+                    ? "bg-blue-500 text-white border-blue-600"
+                    : "bg-white hover:bg-blue-50 border-gray-200"
+                }`}
+              >
+                <span className="text-sm font-semibold">{day}</span>
+                <div className="mt-1 space-y-0.5 w-full">
+                  {eventsForDate(day).slice(0, 2).map((e) => (
+                    <div
+                      key={e.id}
+                      className={`text-xs truncate rounded px-1 ${e.source === "google" ? "bg-yellow-100 text-yellow-700" : "bg-blue-100 text-blue-700"}`}
+                      onClick={(ev) => { ev.stopPropagation(); openEditModal(e); }}
+                    >
+                      {e.name}
+                      {e.source === "google" && " (Google)"}
+                      <button
+                        className="ml-2 text-xs text-red-600"
+                        onClick={(ev) => { ev.stopPropagation(); handleDeleteEvent(e.id); }}
                       >
-                        {e.name}
-                        {e.source === "google" && " (Google)"}
-                        <button
-                          className="ml-2 text-xs text-red-600"
-                          onClick={(ev) => { ev.stopPropagation(); handleDeleteEvent(e.id); }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                    {eventsForDate(day).length > 2 && (
-                      <div className="text-xs text-gray-400">+ more</div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div key={`${wi}-${di}`} className="h-20"></div>
-              )
-            )
-          )}
-        </div>
-
-        {selectedDate && (
-          <div className="mt-6">
-            <h2 className="text-lg font-semibold text-gray-700 mb-3">
-              Time Slots for {selectedDate.toDateString()}
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {getSlotsForDate(selectedDate.toISOString().slice(0, 10)).map((slot, idx) => (
-                <div
-                  key={idx}
-                  className={`p-2 rounded border flex flex-col items-center ${
-                    slot.blocked
-                      ? "bg-red-100 border-red-400 text-red-700"
-                      : "bg-green-100 border-green-400 text-green-700"
-                  }`}
-                >
-                  <span className="font-semibold">{slot.time}</span>
-                  {slot.blocked && (
-                    <span className="text-xs mt-1">
-                      Blocked by: {slot.event?.name} {slot.event?.source === "google" ? "(Google)" : ""}
-                    </span>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  {eventsForDate(day).length > 2 && (
+                    <div className="text-xs text-gray-400">+ more</div>
                   )}
-                  {!slot.blocked && <span className="text-xs mt-1">Available</span>}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {showEventModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-            <form
-              className="bg-white p-6 rounded shadow w-full max-w-lg space-y-3"
-              onSubmit={handleSaveEvent}
-            >
-              <h2 className="text-lg font-semibold mb-2">
-                {editingEvent ? "Edit Event" : "Add Event"}
-              </h2>
-              <input
-                type="text"
-                name="name"
-                placeholder="Event Name"
-                value={eventForm.name}
-                onChange={e => setEventForm({ ...eventForm, name: e.target.value })}
-                required
-                className="w-full p-2 border rounded"
-              />
-              <input
-                type="datetime-local"
-                name="date"
-                value={eventForm.date}
-                onChange={e => setEventForm({ ...eventForm, date: e.target.value })}
-                required
-                className="w-full p-2 border rounded"
-              />
-              <input
-                type="text"
-                name="location"
-                placeholder="Location"
-                value={eventForm.location}
-                onChange={e => setEventForm({ ...eventForm, location: e.target.value })}
-                className="w-full p-2 border rounded"
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded"
-                  onClick={() => { setShowEventModal(false); setEditingEvent(null); }}
-                >
-                  Cancel
-                </button>
               </div>
-            </form>
-          </div>
+            ) : (
+              <div key={`${wi}-${di}`} className="h-20"></div>
+            )
+          )
         )}
       </div>
+
+      {selectedDate && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">
+            Time Slots for {selectedDate.toDateString()}
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {getSlotsForDate(selectedDate.toISOString().slice(0, 10)).map((slot, idx) => (
+              <div
+                key={idx}
+                className={`p-2 rounded border flex flex-col items-center ${
+                  slot.blocked
+                    ? "bg-red-100 border-red-400 text-red-700"
+                    : "bg-green-100 border-green-400 text-green-700"
+                }`}
+              >
+                <span className="font-semibold">{slot.time}</span>
+                {slot.blocked && (
+                  <span className="text-xs mt-1">
+                    Blocked by: {slot.event?.name} {slot.event?.source === "google" ? "(Google)" : ""}
+                  </span>
+                )}
+                {!slot.blocked && <span className="text-xs mt-1">Available</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showEventModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <form
+            className="bg-white p-6 rounded shadow w-full max-w-lg space-y-3"
+            onSubmit={handleSaveEvent}
+          >
+            <h2 className="text-lg font-semibold mb-2">
+              {editingEvent ? "Edit Event" : "Add Event"}
+            </h2>
+            <input
+              type="text"
+              name="name"
+              placeholder="Event Name"
+              value={eventForm.name}
+              onChange={e => setEventForm({ ...eventForm, name: e.target.value })}
+              required
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="datetime-local"
+              name="date"
+              value={eventForm.date}
+              onChange={e => setEventForm({ ...eventForm, date: e.target.value })}
+              required
+              className="w-full p-2 border rounded"
+            />
+            <input
+              type="text"
+              name="location"
+              placeholder="Location"
+              value={eventForm.location}
+              onChange={e => setEventForm({ ...eventForm, location: e.target.value })}
+              className="w-full p-2 border rounded"
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-4 py-2 rounded"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded"
+                onClick={() => { setShowEventModal(false); setEditingEvent(null); }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
