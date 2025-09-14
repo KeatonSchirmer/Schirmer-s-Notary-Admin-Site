@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
+import { useGoogleLogin } from '@react-oauth/google';
 
 type EventItem = {
   id: string | number;
@@ -203,7 +203,6 @@ export default function CalendarPage() {
   }
 
   return (
-    <GoogleOAuthProvider clientId="131000715689-16b27f57ks2jvasq3m6tvqkfcmdcjtpu.apps.googleusercontent.com">
       <div className="min-h-screen bg-gray-50 p-6">
         <button onClick={() => login()} className="bg-blue-600 text-white px-4 py-2 rounded mb-4">
           Connect & Sync Google Calendar
@@ -387,6 +386,5 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-    </GoogleOAuthProvider>
   );
 }
