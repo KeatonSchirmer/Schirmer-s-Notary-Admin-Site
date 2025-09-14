@@ -27,6 +27,7 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [userId, setUserId] = React.useState<string | null>(null);
   const [officeStart, setOfficeStart] = useState(9);
+  const [availabilityChanged, setAvailabilityChanged] = useState(false);
   const [officeEnd, setOfficeEnd] = useState(21);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
@@ -35,7 +36,6 @@ export default function CalendarPage() {
   const [availableDays, setAvailableDays] = useState<number[]>([0,1,2,3,4,5,6]);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
-  // Persist token in localStorage and auto-login if needed
   useEffect(() => {
     const storedToken = localStorage.getItem("googleAccessToken");
     const storedExpiry = localStorage.getItem("googleAccessTokenExpiry");
@@ -47,7 +47,6 @@ export default function CalendarPage() {
     }
   }, []);
 
-  // Auto-trigger login if no valid token
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setGoogleAccessToken(tokenResponse.access_token);
@@ -96,6 +95,10 @@ export default function CalendarPage() {
     scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
   });
 
+   useEffect(() => {
+    setAvailabilityChanged(true);
+    }, [officeStart, officeEnd, availableDays]);
+
   useEffect(() => {
     if (!googleAccessToken) {
       login();
@@ -126,7 +129,24 @@ export default function CalendarPage() {
     if (userId) fetchEvents();
   }, [userId]);
 
-  // --- Save availability to backend when settings change ---
+    const handleConfirmAvailability = async () => {
+    if (!userId) return;
+    await fetch(`${API_BASE}/calendar/availability`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": String(userId),
+      },
+      body: JSON.stringify({
+        officeStart,
+        officeEnd,
+        availableDays,
+      }),
+    });
+    setAvailabilityChanged(false);
+    alert("Availability settings saved!");
+  };
+
   const saveAvailability = async () => {
     if (!userId) return;
     await fetch(`${API_BASE}/calendar/availability`, {
@@ -313,7 +333,7 @@ export default function CalendarPage() {
             </label>
           </div>
           <div>
-            <span className="font-medium text-gray-600 mr-2">Available Days:</span>
+          <span className="font-medium text-gray-600 mr-2">Available Days:</span>
             <div className="flex gap-2 mt-2">
               {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
                 <button
@@ -335,8 +355,19 @@ export default function CalendarPage() {
               ))}
             </div>
           </div>
+          <button
+            className={`mt-4 px-4 py-2 rounded font-semibold transition ${
+              availabilityChanged
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
+            onClick={handleConfirmAvailability}
+            disabled={!availabilityChanged}
+          >
+            Confirm Availability
+          </button>
         </div>
-      </div>
+      </div>  
 
       <div className="flex items-center justify-between mb-6">
         <button
