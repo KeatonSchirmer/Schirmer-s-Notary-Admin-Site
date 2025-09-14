@@ -126,6 +126,31 @@ export default function CalendarPage() {
     if (userId) fetchEvents();
   }, [userId]);
 
+  // --- Save availability to backend when settings change ---
+  const saveAvailability = async () => {
+    if (!userId) return;
+    await fetch(`${API_BASE}/calendar/availability`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": String(userId),
+      },
+      body: JSON.stringify({
+        officeStart,
+        officeEnd,
+        availableDays,
+      }),
+    });
+  };
+
+  useEffect(() => {
+    if (userId) {
+      saveAvailability();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [officeStart, officeEnd, availableDays, userId]);
+  // --------------------------------------------------------
+
   const mergedEvents = [...events, ...googleEvents];
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -176,47 +201,21 @@ export default function CalendarPage() {
   const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) return;
-    let newEventId: string | number | undefined;
     if (editingEvent) {
       await fetch(`${API_BASE}/calendar/local/${editingEvent.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify(eventForm),
       });
-      newEventId = editingEvent.id;
     } else {
-      const res = await fetch(`${API_BASE}/calendar/local`, {
+      await fetch(`${API_BASE}/calendar/local`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify(eventForm),
       });
-      const data = await res.json();
-      newEventId = data.id;
     }
     setShowEventModal(false);
     setEditingEvent(null);
-
-    const saveAvailability = async () => {
-    if (!userId) return;
-    await fetch(`${API_BASE}/calendar/availability`, {
-        method: "POST",
-        headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": String(userId),
-        },
-        body: JSON.stringify({
-        officeStart,
-        officeEnd,
-        availableDays,
-        }),
-    });
-    };
-
-    useEffect(() => {
-    if (userId) {
-        saveAvailability();
-    }
-    }, [officeStart, officeEnd, availableDays, userId]);
 
     if (googleAccessToken) {
       await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
@@ -251,7 +250,6 @@ export default function CalendarPage() {
     for (let hour = officeStart; hour < officeEnd; hour++) {
       for (let min = 0; min < 60; min += 45) {
         const slotTime = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-        const slotDateTime = `${date}T${slotTime}`;
         const event = mergedEvents.find(e => {
           const eventDate = e.start_date.slice(0, 10);
           const eventTime = e.start_date.slice(11, 16);
@@ -286,6 +284,7 @@ export default function CalendarPage() {
         + Add Event
       </button>
 
+      {/* Uniform Office Availability Box */}
       <div className="bg-white rounded-xl shadow p-4 mb-6 max-w-xl mx-auto border border-gray-200">
         <h2 className="text-lg font-semibold mb-4 text-gray-700">Office Availability</h2>
         <div className="flex flex-col gap-4">
