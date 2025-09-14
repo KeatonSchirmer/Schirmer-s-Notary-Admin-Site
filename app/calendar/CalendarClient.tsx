@@ -35,32 +35,27 @@ export default function CalendarPage() {
   const [availableDays, setAvailableDays] = useState<number[]>([0,1,2,3,4,5,6]);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    const storedId = localStorage.getItem("user_id");
-    setUserId(storedId);
+  // Persist token in localStorage and auto-login if needed
+  useEffect(() => {
+    const storedToken = localStorage.getItem("googleAccessToken");
+    const storedExpiry = localStorage.getItem("googleAccessTokenExpiry");
+    if (storedToken && storedExpiry && Date.now() < Number(storedExpiry)) {
+      setGoogleAccessToken(storedToken);
+    } else {
+      localStorage.removeItem("googleAccessToken");
+      localStorage.removeItem("googleAccessTokenExpiry");
+    }
   }, []);
 
-  useEffect(() => {
-    async function fetchEvents() {
-      try {
-        const res = await fetch(`${API_BASE}/calendar/local`, {
-          headers: {
-            "Content-Type": "application/json",
-            "X-User-Id": String(userId),
-          },
-        });
-        if (!res.ok) throw new Error("Failed to load events");
-        const data = await res.json();
-        setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
-      } catch {
-      }
-    }
-    if (userId) fetchEvents();
-  }, [userId]);
-
+  // Auto-trigger login if no valid token
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setGoogleAccessToken(tokenResponse.access_token);
+      localStorage.setItem("googleAccessToken", tokenResponse.access_token);
+      localStorage.setItem(
+        "googleAccessTokenExpiry",
+        String(Date.now() + (tokenResponse.expires_in || 3600) * 1000)
+      );
       const res = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events',
         {
@@ -69,7 +64,6 @@ export default function CalendarPage() {
           },
         }
       );
-
       const data = await res.json();
       const mappedEvents = (data.items as GoogleCalendarEvent[] || []).map((e) => ({
         id: e.id,
@@ -101,6 +95,36 @@ export default function CalendarPage() {
     },
     scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
   });
+
+  useEffect(() => {
+    if (!googleAccessToken) {
+      login();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleAccessToken]);
+
+  React.useEffect(() => {
+    const storedId = localStorage.getItem("user_id");
+    setUserId(storedId);
+  }, []);
+
+  useEffect(() => {
+    async function fetchEvents() {
+      try {
+        const res = await fetch(`${API_BASE}/calendar/local`, {
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Id": String(userId),
+          },
+        });
+        if (!res.ok) throw new Error("Failed to load events");
+        const data = await res.json();
+        setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
+      } catch {
+      }
+    }
+    if (userId) fetchEvents();
+  }, [userId]);
 
   const mergedEvents = [...events, ...googleEvents];
 
@@ -172,7 +196,28 @@ export default function CalendarPage() {
     setShowEventModal(false);
     setEditingEvent(null);
 
-    // Automatically sync to Google Calendar if access token is available
+    const saveAvailability = async () => {
+    if (!userId) return;
+    await fetch(`${API_BASE}/calendar/availability`, {
+        method: "POST",
+        headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": String(userId),
+        },
+        body: JSON.stringify({
+        officeStart,
+        officeEnd,
+        availableDays,
+        }),
+    });
+    };
+
+    useEffect(() => {
+    if (userId) {
+        saveAvailability();
+    }
+    }, [officeStart, officeEnd, availableDays, userId]);
+
     if (googleAccessToken) {
       await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
         method: 'POST',
@@ -186,7 +231,7 @@ export default function CalendarPage() {
           start: { dateTime: eventForm.date },
           end: {
             dateTime: new Date(new Date(eventForm.date).getTime() + 45 * 60 * 1000).toISOString()
-          }, // 45-minute slot
+          },
         }),
       });
     }
@@ -237,12 +282,63 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <button onClick={() => login()} className="bg-blue-600 text-white px-4 py-2 rounded mb-4">
-        Connect & Sync Google Calendar
-      </button>
       <button onClick={() => openAddModal()} className="bg-green-600 text-white px-4 py-2 rounded mb-4 ml-2">
         + Add Event
       </button>
+
+      <div className="bg-white rounded-xl shadow p-4 mb-6 max-w-xl mx-auto border border-gray-200">
+        <h2 className="text-lg font-semibold mb-4 text-gray-700">Office Availability</h2>
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-4 items-center">
+            <label className="font-medium text-gray-600">
+              Start Hour:
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={officeStart}
+                onChange={e => setOfficeStart(Number(e.target.value))}
+                className="ml-2 w-16 border rounded px-2 py-1"
+              />
+            </label>
+            <label className="font-medium text-gray-600">
+              End Hour:
+              <input
+                type="number"
+                min={officeStart + 1}
+                max={24}
+                value={officeEnd}
+                onChange={e => setOfficeEnd(Number(e.target.value))}
+                className="ml-2 w-16 border rounded px-2 py-1"
+              />
+            </label>
+          </div>
+          <div>
+            <span className="font-medium text-gray-600 mr-2">Available Days:</span>
+            <div className="flex gap-2 mt-2">
+              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`px-3 py-2 rounded-full border transition ${
+                    availableDays.includes(i)
+                      ? "bg-blue-500 text-white border-blue-600"
+                      : "bg-gray-100 text-gray-600 border-gray-300"
+                  }`}
+                  onClick={() =>
+                    setAvailableDays(availableDays.includes(i)
+                      ? availableDays.filter(day => day !== i)
+                      : [...availableDays, i])
+                  }
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => changeMonth(-1)}
@@ -262,50 +358,6 @@ export default function CalendarPage() {
         >
           →
         </button>
-      </div>
-
-      <div className="mb-4 flex gap-4 items-center">
-        <label>
-          Office Start:
-          <input
-            type="number"
-            min={0}
-            max={23}
-            value={officeStart}
-            onChange={e => setOfficeStart(Number(e.target.value))}
-            className="ml-2 w-16 border rounded"
-          />
-        </label>
-        <label>
-          Office End:
-          <input
-            type="number"
-            min={officeStart + 1}
-            max={24}
-            value={officeEnd}
-            onChange={e => setOfficeEnd(Number(e.target.value))}
-            className="ml-2 w-16 border rounded"
-          />
-        </label>
-        <label>
-          Days:
-          <div className="flex gap-1 ml-2">
-            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-              <button
-                key={i}
-                type="button"
-                className={`px-2 py-1 rounded ${availableDays.includes(i) ? "bg-blue-500 text-white" : "bg-gray-200"}`}
-                onClick={() =>
-                  setAvailableDays(availableDays.includes(i)
-                    ? availableDays.filter(day => day !== i)
-                    : [...availableDays, i])
-                }
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-        </label>
       </div>
 
       <div className="grid grid-cols-7 text-center font-medium text-gray-600 mb-2">
