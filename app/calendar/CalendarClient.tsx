@@ -112,6 +112,18 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => {
+    if (userId) {
+        fetch(`${API_BASE}/calendar/google-sync-events`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-User-Id": String(userId),
+        },
+        });
+    }
+    }, [userId]);
+
+  useEffect(() => {
     async function fetchEvents() {
       try {
         const res = await fetch(`${API_BASE}/calendar/local`, {
@@ -167,9 +179,7 @@ export default function CalendarPage() {
     if (userId) {
       saveAvailability();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [officeStart, officeEnd, availableDays, userId]);
-  // --------------------------------------------------------
 
   const mergedEvents = [...events, ...googleEvents];
 
