@@ -38,10 +38,11 @@ export default function RootLayout({
                 <Link href="/clients" className="hover:text-green-700">Clients</Link>
                 <Link href="/requests" className="hover:text-green-700">Jobs</Link>
                 <Link href="/calendar" className="hover:text-green-700">Calendar</Link>
+                <Link href="/journal" className="hover:text-green-700">Journal</Link>
                 <Link href="/finances" className="hover:text-green-700">Finances</Link>
                 <Link href="/mileage" className="hover:text-green-700">Mileage</Link>
+                <Link href="/client-accounts" className="hover:text-green-700">+ Profile</Link>
                 <Link href="/account" className="hover:text-green-700">Account</Link>
-                <Link href="/journal" className="hover:text-green-700">Journal</Link>
               </nav>
             </div>
           </header>

@@ -103,13 +103,29 @@ export default function CalendarPage() {
     if (!googleAccessToken) {
       login();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleAccessToken]);
 
   React.useEffect(() => {
     const storedId = localStorage.getItem("user_id");
     setUserId(storedId);
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${API_BASE}/calendar/availability`, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": String(userId),
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.officeStart !== undefined) setOfficeStart(data.officeStart);
+        if (data.officeEnd !== undefined) setOfficeEnd(data.officeEnd);
+        if (Array.isArray(data.availableDays)) setAvailableDays(data.availableDays);
+        setAvailabilityChanged(false);
+      });
+  }, [userId]);
 
   useEffect(() => {
     if (userId) {
