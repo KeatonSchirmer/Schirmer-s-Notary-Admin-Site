@@ -95,15 +95,31 @@ export default function CalendarPage() {
     scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
   });
 
-   useEffect(() => {
+  const saveAvailability = React.useCallback(async () => {
+    if (!userId) return;
+    await fetch(`${API_BASE}/calendar/availability`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": String(userId),
+      },
+      body: JSON.stringify({
+        officeStart,
+        officeEnd,
+        availableDays,
+      }),
+    });
+  }, [userId, officeStart, officeEnd, availableDays]);
+
+  useEffect(() => {
     setAvailabilityChanged(true);
-    }, [officeStart, officeEnd, availableDays]);
+  }, [officeStart, officeEnd, availableDays]);
 
   useEffect(() => {
     if (!googleAccessToken) {
       login();
     }
-  }, [googleAccessToken]);
+  }, [googleAccessToken, login]);
 
   React.useEffect(() => {
     const storedId = localStorage.getItem("user_id");
@@ -129,15 +145,15 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (userId) {
-        fetch(`${API_BASE}/calendar/google-sync-events`, {
+      fetch(`${API_BASE}/calendar/google-sync-events`, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
-            "X-User-Id": String(userId),
+          "Content-Type": "application/json",
+          "X-User-Id": String(userId),
         },
-        });
+      });
     }
-    }, [userId]);
+  }, [userId]);
 
   useEffect(() => {
     async function fetchEvents() {
@@ -157,7 +173,13 @@ export default function CalendarPage() {
     if (userId) fetchEvents();
   }, [userId]);
 
-    const handleConfirmAvailability = async () => {
+  useEffect(() => {
+    if (userId) {
+      saveAvailability();
+    }
+  }, [officeStart, officeEnd, availableDays, userId, saveAvailability]);
+
+  const handleConfirmAvailability = async () => {
     if (!userId) return;
     await fetch(`${API_BASE}/calendar/availability`, {
       method: "POST",
@@ -173,22 +195,6 @@ export default function CalendarPage() {
     });
     setAvailabilityChanged(false);
     alert("Availability settings saved!");
-  };
-
-  const saveAvailability = async () => {
-    if (!userId) return;
-    await fetch(`${API_BASE}/calendar/availability`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": String(userId),
-      },
-      body: JSON.stringify({
-        officeStart,
-        officeEnd,
-        availableDays,
-      }),
-    });
   };
 
   useEffect(() => {
