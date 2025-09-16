@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from "react";
 
 export default function ClientDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  // ...existing code...
   const [clientId, setClientId] = useState<string>("");
   useEffect(() => {
     (async () => {
@@ -38,6 +37,11 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   const [editError, setEditError] = useState("");
   const [userId, setUserId] = React.useState<string | null>(null);
 
+  // Premium plan state
+  const [premiumPlan, setPremiumPlan] = useState<string>("");
+  const [premiumEditMode, setPremiumEditMode] = useState(false);
+  const [premiumLoading, setPremiumLoading] = useState(false);
+
   React.useEffect(() => {
     const storedId = localStorage.getItem("user_id");
     setUserId(storedId);
@@ -71,8 +75,21 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       } catch {
       }
     }
+    async function fetchPremium() {
+      if (!clientId) return;
+      try {
+        const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}/premium`, {
+          headers: { "X-User-Id": String(userId) },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPremiumPlan(data.premium_plan || "");
+        }
+      } catch {}
+    }
     fetchClientDetails();
     fetchServiceHistory();
+    fetchPremium();
   }, [clientId, userId]);
 
   const handleEditContact = async () => {
@@ -101,6 +118,29 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       setEditError("Failed to update contact.");
     }
     setEditLoading(false);
+  };
+
+  // Send account creation email handler
+  const handleSendAccountEmail = async () => {
+    await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}/send-confirmation`, {
+      method: "POST",
+      headers: { "X-User-Id": String(userId) },
+    });
+    alert("Account creation email sent!");
+  };
+
+  // Premium plan update handler
+  const handleSavePremium = async () => {
+    setPremiumLoading(true);
+    try {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}/premium`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
+        body: JSON.stringify({ premium_plan: premiumPlan }),
+      });
+      if (res.ok) setPremiumEditMode(false);
+    } catch {}
+    setPremiumLoading(false);
   };
 
   // Delete contact handler
@@ -210,6 +250,51 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
               >
                 {deleteLoading ? "Deleting..." : "Delete"}
               </button>
+              {/* Button to send account creation email */}
+              <button
+                onClick={handleSendAccountEmail}
+                className="bg-green-600 text-white px-4 py-2 rounded font-semibold"
+              >
+                Send Account Creation Email
+              </button>
+            </div>
+            {/* Premium plan section */}
+            <div className="mt-6">
+              <h3 className="font-semibold mb-2">Premium Plan</h3>
+              {premiumEditMode ? (
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={premiumPlan}
+                    onChange={e => setPremiumPlan(e.target.value)}
+                    className="p-2 border rounded"
+                    placeholder="Premium Plan"
+                  />
+                  <button
+                    onClick={handleSavePremium}
+                    className="bg-blue-600 text-white px-3 py-1 rounded"
+                    disabled={premiumLoading}
+                  >
+                    {premiumLoading ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => setPremiumEditMode(false)}
+                    className="bg-gray-300 text-gray-800 px-3 py-1 rounded"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2 items-center">
+                  <span>{premiumPlan || "None"}</span>
+                  <button
+                    onClick={() => setPremiumEditMode(true)}
+                    className="bg-yellow-500 text-white px-3 py-1 rounded"
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
             </div>
             {editError && <p className="text-red-600 mt-2">{editError}</p>}
           </>

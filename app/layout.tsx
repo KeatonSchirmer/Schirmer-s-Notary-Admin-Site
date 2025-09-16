@@ -41,7 +41,6 @@ export default function RootLayout({
                 <Link href="/journal" className="hover:text-green-700">Journal</Link>
                 <Link href="/finances" className="hover:text-green-700">Finances</Link>
                 <Link href="/mileage" className="hover:text-green-700">Mileage</Link>
-                <Link href="/client-accounts" className="hover:text-green-700">+ Profile</Link>
                 <Link href="/account" className="hover:text-green-700">Account</Link>
               </nav>
             </div>

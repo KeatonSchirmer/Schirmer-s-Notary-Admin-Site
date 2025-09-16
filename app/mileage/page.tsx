@@ -6,6 +6,7 @@ type MileageEntry = {
   date: string;
   miles: number;
   purpose: string;
+  notes?: string;
 };
 
 export default function MileagePage() {
@@ -16,6 +17,7 @@ export default function MileagePage() {
   const [error, setError] = useState("");
   const [weeklyError, setWeeklyError] = useState("");
   const [userId, setUserId] = React.useState<string | null>(null);
+  const [selectedMileage, setSelectedMileage] = useState<MileageEntry | null>(null);
 
   React.useEffect(() => {
     const storedId = localStorage.getItem("user_id");
@@ -28,7 +30,7 @@ export default function MileagePage() {
       setError("");
       try {
         const res = await fetch("https://schirmer-s-notary-backend.onrender.com/mileage/", {
-          headers: { "X-User-Id": String(userId) }, // Use userId from localStorage
+          headers: { "X-User-Id": String(userId) },
         });
         const data = await res.json();
         setEntries(data.entries || []);
@@ -43,7 +45,7 @@ export default function MileagePage() {
       setWeeklyError("");
       try {
         const weeklyRes = await fetch("https://schirmer-s-notary-backend.onrender.com/mileage/weekly", {
-          headers: { "X-User-Id": String(userId) }, // Use userId from localStorage
+          headers: { "X-User-Id": String(userId) },
         });
         const data = await weeklyRes.json();
         setWeeklyMileage(data.weekly_mileage ?? 0);
@@ -60,7 +62,6 @@ export default function MileagePage() {
   }, [userId]);
 
   const handlePrintPDF = () => {
-    // Opens backend-generated PDF
     window.open("/mileage/pdf", "_blank");
   };
 
@@ -78,13 +79,11 @@ export default function MileagePage() {
         </button>
       </div>
 
-      {/* Summary */}
       <div className="bg-white p-4 rounded-2xl shadow mb-6">
         <p className="text-gray-500 text-sm">Total Miles Tracked</p>
         <p className="text-xl font-semibold text-blue-600">{totalMiles} miles</p>
       </div>
 
-      {/* Weekly Mileage Section */}
       <div className="bg-white p-4 rounded-2xl shadow mb-6">
         <p className="text-gray-500 text-sm">Mileage This Week</p>
         {weeklyLoading ? (
@@ -96,7 +95,6 @@ export default function MileagePage() {
         )}
       </div>
 
-      {/* Entries */}
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : error ? (
@@ -108,7 +106,10 @@ export default function MileagePage() {
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className="bg-white p-4 rounded-2xl shadow flex justify-between items-center"
+              className={`bg-white p-4 rounded-2xl shadow flex justify-between items-center cursor-pointer ${
+                selectedMileage?.id === entry.id ? "border-2 border-blue-600" : ""
+              }`}
+              onClick={() => setSelectedMileage(entry)}
             >
               <div>
                 <p className="font-semibold">{entry.date}</p>
@@ -117,6 +118,18 @@ export default function MileagePage() {
               <p className="text-blue-600 font-bold">{entry.miles} mi</p>
             </div>
           ))}
+          {selectedMileage && (
+            <div className="bg-blue-50 p-4 rounded-2xl shadow mt-2">
+              <h3 className="font-semibold mb-2">Notes for {selectedMileage.date}</h3>
+              <p>{selectedMileage.notes || "No notes available."}</p>
+              <button
+                className="mt-2 bg-gray-300 text-gray-800 px-3 py-1 rounded"
+                onClick={() => setSelectedMileage(null)}
+              >
+                Close
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

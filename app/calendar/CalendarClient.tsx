@@ -95,6 +95,7 @@ export default function CalendarPage() {
     scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
   });
 
+  // Save availability using backend field names
   const saveAvailability = React.useCallback(async () => {
     if (!userId) return;
     await fetch(`${API_BASE}/calendar/availability`, {
@@ -104,9 +105,9 @@ export default function CalendarPage() {
         "X-User-Id": String(userId),
       },
       body: JSON.stringify({
-        officeStart,
-        officeEnd,
-        availableDays,
+        office_start: officeStart,
+        office_end: officeEnd,
+        available_days: availableDays,
       }),
     });
   }, [userId, officeStart, officeEnd, availableDays]);
@@ -126,6 +127,7 @@ export default function CalendarPage() {
     setUserId(storedId);
   }, []);
 
+  // Fetch saved availability using backend field names
   useEffect(() => {
     if (!userId) return;
     fetch(`${API_BASE}/calendar/availability`, {
@@ -136,9 +138,13 @@ export default function CalendarPage() {
     })
       .then(res => res.json())
       .then(data => {
-        if (data.officeStart !== undefined) setOfficeStart(data.officeStart);
-        if (data.officeEnd !== undefined) setOfficeEnd(data.officeEnd);
-        if (Array.isArray(data.availableDays)) setAvailableDays(data.availableDays);
+        if (data.office_start !== undefined) setOfficeStart(data.office_start);
+        if (data.office_end !== undefined) setOfficeEnd(data.office_end);
+        if (Array.isArray(data.available_days)) {
+          setAvailableDays(data.available_days.map(Number));
+        } else if (typeof data.available_days === "string") {
+          setAvailableDays(data.available_days.split(",").map(Number));
+        }
         setAvailabilityChanged(false);
       });
   }, [userId]);
@@ -173,11 +179,7 @@ export default function CalendarPage() {
     if (userId) fetchEvents();
   }, [userId]);
 
-  useEffect(() => {
-    if (userId) {
-      saveAvailability();
-    }
-  }, [officeStart, officeEnd, availableDays, userId, saveAvailability]);
+  // Remove auto-save on change, only save on button click
 
   const handleConfirmAvailability = async () => {
     if (!userId) return;
@@ -188,20 +190,14 @@ export default function CalendarPage() {
         "X-User-Id": String(userId),
       },
       body: JSON.stringify({
-        officeStart,
-        officeEnd,
-        availableDays,
+        office_start: officeStart,
+        office_end: officeEnd,
+        available_days: availableDays,
       }),
     });
     setAvailabilityChanged(false);
     alert("Availability settings saved!");
   };
-
-  useEffect(() => {
-    if (userId) {
-      saveAvailability();
-    }
-  }, [officeStart, officeEnd, availableDays, userId]);
 
   const mergedEvents = [...events, ...googleEvents];
 

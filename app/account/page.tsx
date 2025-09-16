@@ -1,235 +1,182 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "../../ui/card";
 import { Input } from "../../ui/input";
 import { Button } from "../../ui/button";
 
+type Admin = {
+  id: number;
+  name: string;
+  email: string;
+  address?: string;
+  license_number?: string;
+  license_expiration?: string;
+  two_factor_enabled?: boolean;
+  notification_enabled?: boolean;
+};
+
 export default function AccountPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [admin, setAdmin] = useState<Admin | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState<Partial<Admin>>({});
+  const [editLoading, setEditLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [loadingEmail, setLoadingEmail] = useState(false);
-  const [loadingPassword, setLoadingPassword] = useState(false);
-  const [twoFAEnabled, setTwoFAEnabled] = useState(false);
-  const [loading2FA, setLoading2FA] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  // Removed unused logoutLoading state
   const [userId, setUserId] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const storedId = localStorage.getItem("user_id");
     setUserId(storedId);
     if (storedId) {
-      fetch(`https://schirmer-s-notary-backend.onrender.com/auth/twofa/status`, {
+      fetch(`https://schirmer-s-notary-backend.onrender.com/admin/profile`, {
         headers: { "X-User-Id": String(storedId) },
       })
         .then((res) => res.json())
-        .then((data) => setTwoFAEnabled(!!data.enabled))
-        .catch(() => setTwoFAEnabled(false));
+        .then((data) => {
+          setAdmin(data.admin || null);
+          setEditData(data.admin || {});
+        })
+        .catch(() => setAdmin(null))
+        .finally(() => setLoading(false));
     }
   }, []);
 
-  const handleUpdateEmail = async () => {
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setEditData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!userId) return;
-    setLoadingEmail(true);
+    setEditLoading(true);
     setMessage("");
     try {
-      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/profile/update`, {
-        method: "PATCH",
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/admin/profile`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "X-User-Id": String(userId),
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(editData),
       });
       const data = await res.json();
-      setMessage(
-        res.ok
-          ? "✅ Email updated successfully."
-          : data?.message || "Failed to update email."
-      );
+      if (res.ok) {
+        setAdmin(data.admin || null);
+        setMessage("✅ Profile updated.");
+        setEditMode(false);
+      } else {
+        setMessage(data?.message || "Failed to update profile.");
+      }
     } catch {
-      setMessage("Failed to update email.");
+      setMessage("Failed to update profile.");
     } finally {
-      setLoadingEmail(false);
+      setEditLoading(false);
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!userId) return;
-    setLoadingPassword(true);
-    setMessage("");
-    try {
-      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/auth/change-password`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": String(userId),
-        },
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json();
-      setMessage(
-        res.ok
-          ? "✅ Password changed successfully."
-          : data?.message || "Failed to change password."
-      );
-    } catch {
-      setMessage("Failed to change password.");
-    } finally {
-      setLoadingPassword(false);
-    }
-  };
-
-  const handleToggle2FA = async () => {
-    if (!userId) return;
-    setLoading2FA(true);
-    setMessage("");
-    try {
-      // Always send code: "123456" for dummy backend
-      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/auth/twofa`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": String(userId),
-        },
-        body: JSON.stringify({ enable: !twoFAEnabled, code: "123456" }),
-      });
-      const data = await res.json();
-      // Use backend response to set enabled/disabled state
-      setTwoFAEnabled(data.enabled ?? !twoFAEnabled);
-      setMessage(
-        res.ok
-          ? data.enabled
-            ? "✅ 2FA enabled."
-            : "✅ 2FA disabled."
-          : data?.message || "❌ Failed to update 2FA."
-      );
-    } catch {
-      setMessage("❌ Failed to update 2FA.");
-    } finally {
-      setLoading2FA(false);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!userId) return;
-    setDeleteLoading(true);
-    setMessage("");
-    try {
-      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/profile/delete`, {
-        method: "DELETE",
-        headers: {
-          "X-User-Id": String(userId),
-        },
-      });
-      const data = await res.json();
-      setMessage(
-        res.ok
-          ? "✅ Account deleted."
-          : data?.message || "Failed to delete account."
-      );
-      // Optionally redirect or log out
-    } catch {
-      setMessage("Failed to delete account.");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-  const handleLogout = () => {
-    localStorage.removeItem("user_id");
-    window.location.href = "/";
-  };
+  if (loading) return <div className="p-6">Loading...</div>;
+  if (!admin) return <div className="p-6 text-red-600">Admin profile not found.</div>;
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-6">
-      <Card className="w-full max-w-lg shadow-md rounded-2xl">
-        <CardContent className="p-6 space-y-6">
-          <h1 className="text-2xl font-semibold text-gray-800">
-            Account Settings
+    <div className="flex flex-col items-center min-h-screen bg-gray-50 p-6">
+      {/* Info Card */}
+      <Card className="w-full max-w-lg shadow-md rounded-2xl mb-8">
+        <CardContent className="p-6 space-y-4">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-2">
+            Admin Account Info
           </h1>
+          <div>
+            <p><span className="font-semibold">Name:</span> {admin.name}</p>
+            <p><span className="font-semibold">Email:</span> {admin.email}</p>
+            <p><span className="font-semibold">Address:</span> {admin.address || "-"}</p>
+            <p><span className="font-semibold">License #:</span> {admin.license_number || "-"}</p>
+            <p><span className="font-semibold">License Expiration:</span> {admin.license_expiration || "-"}</p>
+            <p>
+              <span className="font-semibold">Two-Factor Enabled:</span>{" "}
+              {admin.two_factor_enabled ? "Yes" : "No"}
+            </p>
+            <p>
+              <span className="font-semibold">Notifications:</span>{" "}
+              {admin.notification_enabled ? "Enabled" : "Disabled"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-          {/* Email Update */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">Email</label>
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                placeholder="Enter new email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+      {/* Edit Card */}
+      <Card className="w-full max-w-lg shadow-md rounded-2xl">
+        <CardContent className="p-6 space-y-4">
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Edit Account Info
+          </h2>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <Input
+              name="name"
+              type="text"
+              placeholder="Name"
+              value={editData.name ?? ""}
+              onChange={handleEditChange}
+            />
+            <Input
+              name="email"
+              type="email"
+              placeholder="Email"
+              value={editData.email ?? ""}
+              onChange={handleEditChange}
+            />
+            <Input
+              name="address"
+              type="text"
+              placeholder="Address"
+              value={editData.address ?? ""}
+              onChange={handleEditChange}
+            />
+            <Input
+              name="license_number"
+              type="text"
+              placeholder="License Number"
+              value={editData.license_number ?? ""}
+              onChange={handleEditChange}
+            />
+            <Input
+              name="license_expiration"
+              type="text"
+              placeholder="License Expiration"
+              value={editData.license_expiration ?? ""}
+              onChange={handleEditChange}
+            />
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="two_factor_enabled"
+                checked={!!editData.two_factor_enabled}
+                onChange={handleEditChange}
+                id="twofa"
               />
-              <Button onClick={handleUpdateEmail} disabled={loadingEmail}>
-                {loadingEmail ? "Updating..." : "Update"}
-              </Button>
+              <label htmlFor="twofa" className="text-sm font-medium text-gray-600">
+                Two-Factor Enabled
+              </label>
             </div>
-          </div>
-
-          {/* Password Update */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">
-              New Password
-            </label>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="Enter new password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="notification_enabled"
+                checked={!!editData.notification_enabled}
+                onChange={handleEditChange}
+                id="notify"
               />
-              <Button onClick={handleChangePassword} disabled={loadingPassword}>
-                {loadingPassword ? "Changing..." : "Change"}
-              </Button>
+              <label htmlFor="notify" className="text-sm font-medium text-gray-600">
+                Notifications Enabled
+              </label>
             </div>
-          </div>
-
-          {/* 2FA Section */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">
-              Two-Factor Authentication (2FA)
-            </label>
-            <div className="flex gap-2 items-center">
-              <Button
-                onClick={handleToggle2FA}
-                disabled={loading2FA}
-                variant={twoFAEnabled ? "destructive" : "default"}
-              >
-                {loading2FA
-                  ? twoFAEnabled
-                    ? "Disabling..."
-                    : "Enabling..."
-                  : twoFAEnabled
-                  ? "Disable 2FA"
-                  : "Enable 2FA"}
-              </Button>
-              <span
-                className={`text-xs font-semibold ${
-                  twoFAEnabled ? "text-green-600" : "text-gray-400"
-                }`}
-              >
-                {twoFAEnabled ? "Enabled" : "Disabled"}
-              </span>
-            </div>
-          </div>
-
-          {/* Delete Account & Logout Buttons */}
-          <div className="flex gap-4 mt-6">
-            <Button
-              onClick={handleDeleteAccount}
-              disabled={deleteLoading}
-              variant="destructive"
-            >
-              {deleteLoading ? "Deleting..." : "Delete Account"}
+            <Button type="submit" disabled={editLoading}>
+              {editLoading ? "Saving..." : "Save Changes"}
             </Button>
-            <Button
-              onClick={handleLogout}
-              className="bg-red-600 text-white mt-4"
-            >
-              Log Out
-            </Button>
-          </div>
-
-          {/* Feedback */}
+          </form>
           {message && (
             <p
               className={`text-sm font-medium ${
