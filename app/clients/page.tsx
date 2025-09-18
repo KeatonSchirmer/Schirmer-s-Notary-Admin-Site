@@ -74,11 +74,20 @@ const ClientsPage: React.FC = () => {
       const res = await fetch("https://schirmer-s-notary-backend.onrender.com/clients/create", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
-        body: JSON.stringify({ name: clientName, email: clientEmail, company }),
+        body: JSON.stringify({
+          name: clientName,
+          email: clientEmail,
+          company_name: company,
+        }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setClients(data.clients || []);
+        const newClient = await res.json();
+        setClients((prev) => [...prev, {
+          id: newClient.id,
+          name: newClient.name,
+          email: newClient.email,
+          company: company,
+        }]);
         setShowClientModal(false);
         setClientName("");
         setClientEmail("");

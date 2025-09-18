@@ -12,7 +12,7 @@ type Finance = {
   pdfs?: { id: number; filename: string; url: string }[];
 };
 
-const API_BASE = "https://schirmer-s-notary-backend.onrender.com/";
+const API_BASE = "https://schirmer-s-notary-backend.onrender.com";
 
 export default function FinanceDetailPage() {
   const params = useParams();

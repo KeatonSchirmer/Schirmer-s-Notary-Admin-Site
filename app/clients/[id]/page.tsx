@@ -37,7 +37,6 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   const [editError, setEditError] = useState("");
   const [userId, setUserId] = React.useState<string | null>(null);
 
-  // Premium plan state
   const [premiumPlan, setPremiumPlan] = useState<string>("");
   const [premiumEditMode, setPremiumEditMode] = useState(false);
   const [premiumLoading, setPremiumLoading] = useState(false);
@@ -48,6 +47,8 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
   }, []);
 
   useEffect(() => {
+    if (!clientId || !userId) return;
+
     async function fetchClientDetails() {
       setLoading(true);
       setError("");
@@ -63,6 +64,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       }
       setLoading(false);
     }
+
     async function fetchServiceHistory() {
       try {
         const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}/history`, {
@@ -75,8 +77,8 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
       } catch {
       }
     }
+
     async function fetchPremium() {
-      if (!clientId) return;
       try {
         const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}/premium`, {
           headers: { "X-User-Id": String(userId) },
@@ -120,7 +122,6 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     setEditLoading(false);
   };
 
-  // Send account creation email handler
   const handleSendAccountEmail = async () => {
     await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}/send-confirmation`, {
       method: "POST",
@@ -129,7 +130,6 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     alert("Account creation email sent!");
   };
 
-  // Premium plan update handler
   const handleSavePremium = async () => {
     setPremiumLoading(true);
     try {
