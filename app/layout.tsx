@@ -25,15 +25,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
-  <title>Schirmer&apos;s Admin</title>
+    <title>Schirmer&apos;s Admin</title>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full flex flex-col`}
       >
         {!isLoginPage && (
-          <header className="bg-white shadow-md sticky top-0 z-50">
+          <header className="bg-white shadow-md sticky top-0 z-50 min-h-20">
             <div className="max-w-7xl mx-auto flex justify-between items-center px-6 py-4">
-              <nav className="space-x-6">
+              <nav className="space-x-6 text-lg font-medium">
                 <Link href="/dashboard" className="hover:text-green-700">Dashboard</Link>
                 <Link href="/clients" className="hover:text-green-700">Clients</Link>
                 <Link href="/requests" className="hover:text-green-700">Jobs</Link>

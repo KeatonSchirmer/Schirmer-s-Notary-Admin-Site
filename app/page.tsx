@@ -14,6 +14,7 @@ export default function AdminLoginPage() {
     const res = await fetch("https://schirmer-s-notary-backend.onrender.com/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email: username, password, role: "admin" })
     });
     if (res.ok) {
@@ -31,7 +32,7 @@ export default function AdminLoginPage() {
         <h1 className="text-2xl font-bold mb-6 text-center">Admin Login</h1>
         <input
           type="text"
-          placeholder="Username"
+          placeholder="Email"
           value={username}
           onChange={e => setUsername(e.target.value)}
           className="w-full p-2 mb-4 border rounded"

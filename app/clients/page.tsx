@@ -71,7 +71,7 @@ const ClientsPage: React.FC = () => {
 
   const handleAddClient = async () => {
     try {
-      const res = await fetch("https://schirmer-s-notary-backend.onrender.com/clients/add", {
+      const res = await fetch("https://schirmer-s-notary-backend.onrender.com/clients/create", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify({ name: clientName, email: clientEmail, company }),

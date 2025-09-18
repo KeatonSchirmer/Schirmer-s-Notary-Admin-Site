@@ -7,6 +7,7 @@ type EventItem = {
   name: string;
   start_date: string;
   location: string;
+  notes?: string;
   source?: "local" | "google";
 };
 
@@ -15,9 +16,17 @@ type GoogleCalendarEvent = {
   summary?: string;
   start: { dateTime?: string; date?: string };
   location?: string;
+  description?: string;
 };
 
 const API_BASE = "https://schirmer-s-notary-backend.onrender.com";
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+type DayAvailabilities = { [day: string]: { start: string; end: string } };
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const minute = i % 2 === 0 ? "00" : "30";
+  return `${hour.toString().padStart(2, "0")}:${minute}`;
+});
 
 export default function CalendarPage() {
   const today = new Date();
@@ -25,17 +34,29 @@ export default function CalendarPage() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [userId, setUserId] = React.useState<string | null>(null);
-  const [officeStart, setOfficeStart] = useState(9);
-  const [availabilityChanged, setAvailabilityChanged] = useState(false);
-  const [officeEnd, setOfficeEnd] = useState(21);
-  const [showEventModal, setShowEventModal] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
-  const [eventForm, setEventForm] = useState<{ name: string; date: string; location: string }>({ name: "", date: "", location: "" });
+  const [userId, setUserId] = useState<string | null>(null);
   const [googleEvents, setGoogleEvents] = useState<EventItem[]>([]);
-  const [availableDays, setAvailableDays] = useState<number[]>([0,1,2,3,4,5,6]);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
+  // Availability states
+  const [dayAvailabilities, setDayAvailabilities] = useState<DayAvailabilities>({});
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editDays, setEditDays] = useState<string[]>([]);
+  const [editTimes, setEditTimes] = useState<DayAvailabilities>({});
+  const [savingAvailability, setSavingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+
+  // Event modal states
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
+  const [eventForm, setEventForm] = useState<{ name: string; date: string; location: string; notes: string }>({
+    name: "",
+    date: "",
+    location: "",
+    notes: "",
+  });
+
+  // Google login and sync
   useEffect(() => {
     const storedToken = localStorage.getItem("googleAccessToken");
     const storedExpiry = localStorage.getItem("googleAccessTokenExpiry");
@@ -58,9 +79,7 @@ export default function CalendarPage() {
       const res = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events',
         {
-          headers: {
-            Authorization: `Bearer ${tokenResponse.access_token}`,
-          },
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
         }
       );
       const data = await res.json();
@@ -69,6 +88,7 @@ export default function CalendarPage() {
         name: e.summary || "No Title",
         start_date: e.start.dateTime || e.start.date || "",
         location: e.location || "",
+        notes: e.description || "",
         source: "google" as const,
       }));
       setGoogleEvents(mappedEvents);
@@ -95,39 +115,16 @@ export default function CalendarPage() {
     scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
   });
 
-  // Save availability using backend field names
-  const saveAvailability = React.useCallback(async () => {
-    if (!userId) return;
-    await fetch(`${API_BASE}/calendar/availability`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": String(userId),
-      },
-      body: JSON.stringify({
-        office_start: officeStart,
-        office_end: officeEnd,
-        available_days: availableDays,
-      }),
-    });
-  }, [userId, officeStart, officeEnd, availableDays]);
-
   useEffect(() => {
-    setAvailabilityChanged(true);
-  }, [officeStart, officeEnd, availableDays]);
-
-  useEffect(() => {
-    if (!googleAccessToken) {
-      login();
-    }
+    if (!googleAccessToken) login();
   }, [googleAccessToken, login]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const storedId = localStorage.getItem("user_id");
     setUserId(storedId);
   }, []);
 
-  // Fetch saved availability using backend field names
+  // Fetch availability
   useEffect(() => {
     if (!userId) return;
     fetch(`${API_BASE}/calendar/availability`, {
@@ -138,29 +135,58 @@ export default function CalendarPage() {
     })
       .then(res => res.json())
       .then(data => {
-        if (data.office_start !== undefined) setOfficeStart(data.office_start);
-        if (data.office_end !== undefined) setOfficeEnd(data.office_end);
-        if (Array.isArray(data.available_days)) {
-          setAvailableDays(data.available_days.map(Number));
-        } else if (typeof data.available_days === "string") {
-          setAvailableDays(data.available_days.split(",").map(Number));
+        if (data.available_days_json) {
+          setDayAvailabilities(JSON.parse(data.available_days_json));
+        } else {
+          setDayAvailabilities({});
         }
-        setAvailabilityChanged(false);
       });
-  }, [userId]);
+  }, [userId, editModalVisible]);
 
   useEffect(() => {
-    if (userId) {
-      fetch(`${API_BASE}/calendar/google-sync-events`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": String(userId),
-        },
-      });
+    if (editModalVisible) {
+      setEditDays(Object.keys(dayAvailabilities));
+      setEditTimes({ ...dayAvailabilities });
     }
-  }, [userId]);
+  }, [editModalVisible, dayAvailabilities]);
 
+  function handleToggleEditDay(day: string) {
+    setEditDays(prev =>
+      prev.includes(day)
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
+    setEditTimes(prev =>
+      prev[day]
+        ? prev
+        : { ...prev, [day]: { start: "09:00", end: "17:00" } }
+    );
+  }
+
+  async function saveAvailability(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingAvailability(true);
+    setAvailabilityError("");
+    try {
+      const payload = { available_days_json: JSON.stringify(editTimes) };
+      const res = await fetch(`${API_BASE}/calendar/availability`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEditModalVisible(false);
+      } else {
+        setAvailabilityError(data?.message || "Failed to save availability.");
+      }
+    } catch {
+      setAvailabilityError("Failed to save availability.");
+    }
+    setSavingAvailability(false);
+  }
+
+  // Fetch events
   useEffect(() => {
     async function fetchEvents() {
       try {
@@ -173,34 +199,14 @@ export default function CalendarPage() {
         if (!res.ok) throw new Error("Failed to load events");
         const data = await res.json();
         setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
-      } catch {
-      }
+      } catch {}
     }
     if (userId) fetchEvents();
   }, [userId]);
 
-  // Remove auto-save on change, only save on button click
-
-  const handleConfirmAvailability = async () => {
-    if (!userId) return;
-    await fetch(`${API_BASE}/calendar/availability`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": String(userId),
-      },
-      body: JSON.stringify({
-        office_start: officeStart,
-        office_end: officeEnd,
-        available_days: availableDays,
-      }),
-    });
-    setAvailabilityChanged(false);
-    alert("Availability settings saved!");
-  };
-
   const mergedEvents = [...events, ...googleEvents];
 
+  // Calendar logic
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
   const weeks: (number | null)[][] = [];
@@ -234,32 +240,44 @@ export default function CalendarPage() {
     return mergedEvents.filter((e) => e.start_date.startsWith(dateStr));
   };
 
+  // Add/Edit Event Modal logic
   const openAddModal = (date?: string) => {
     setEditingEvent(null);
-    setEventForm({ name: "", date: date || "", location: "" });
+    setEventForm({ name: "", date: date || "", location: "", notes: "" });
     setShowEventModal(true);
   };
 
   const openEditModal = (event: EventItem) => {
     setEditingEvent(event);
-    setEventForm({ name: event.name, date: event.start_date, location: event.location });
+    setEventForm({
+      name: event.name,
+      date: event.start_date,
+      location: event.location,
+      notes: event.notes || "",
+    });
     setShowEventModal(true);
   };
 
   const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) return;
+    const payload = {
+      name: eventForm.name,
+      date: eventForm.date,
+      location: eventForm.location,
+      notes: eventForm.notes,
+    };
     if (editingEvent) {
       await fetch(`${API_BASE}/calendar/local/${editingEvent.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
-        body: JSON.stringify(eventForm),
+        body: JSON.stringify(payload),
       });
     } else {
       await fetch(`${API_BASE}/calendar/local`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
-        body: JSON.stringify(eventForm),
+        body: JSON.stringify(payload),
       });
     }
     setShowEventModal(false);
@@ -275,6 +293,7 @@ export default function CalendarPage() {
         body: JSON.stringify({
           summary: eventForm.name,
           location: eventForm.location,
+          description: eventForm.notes,
           start: { dateTime: eventForm.date },
           end: {
             dateTime: new Date(new Date(eventForm.date).getTime() + 45 * 60 * 1000).toISOString()
@@ -290,29 +309,6 @@ export default function CalendarPage() {
     setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
   };
 
-  function getSlotsForDate(date: string) {
-    const dateObj = new Date(date);
-    const dayOfWeek = dateObj.getDay();
-    if (!availableDays.includes(dayOfWeek)) return [];
-    const slots: { time: string; blocked: boolean; event?: EventItem }[] = [];
-    for (let hour = officeStart; hour < officeEnd; hour++) {
-      for (let min = 0; min < 60; min += 45) {
-        const slotTime = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-        const event = mergedEvents.find(e => {
-          const eventDate = e.start_date.slice(0, 10);
-          const eventTime = e.start_date.slice(11, 16);
-          return eventDate === date && eventTime === slotTime;
-        });
-        slots.push({
-          time: slotTime,
-          blocked: !!event,
-          event,
-        });
-      }
-    }
-    return slots;
-  }
-
   const handleDeleteEvent = async (eventId: string | number) => {
     if (!userId) return;
     await fetch(`${API_BASE}/calendar/local/${eventId}`, {
@@ -326,77 +322,199 @@ export default function CalendarPage() {
     setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
   };
 
+  // --- Render ---
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6 pb-70">
+      {/* Office Availability Card */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          width: "100%",
+          marginBottom: 32,
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: "#fff",
+            borderRadius: 16,
+            padding: 32,
+            margin: 16,
+            position: "relative",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.08)",
+            maxWidth: 600,
+            minWidth: 320,
+            width: "100%",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: "#222",
+              marginBottom: 16,
+            }}
+          >
+            Availability
+          </div>
+          {Object.keys(dayAvailabilities).length > 0 ? (
+            DAY_LABELS.map((day) =>
+              dayAvailabilities[day] ? (
+                <div
+                  key={day}
+                  style={{
+                    fontSize: 16,
+                    color: "#222",
+                    padding: "4px 0",
+                    marginBottom: 8,
+                    display: "flex",
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>{day}:</span>
+                  <span>{dayAvailabilities[day].start} - {dayAvailabilities[day].end}</span>
+                </div>
+              ) : null
+            )
+          ) : (
+            <div style={{ color: "#888" }}>No availability set.</div>
+          )}
+          <button
+            style={{
+              backgroundColor: "#2563eb",
+              padding: 10,
+              borderRadius: 50,
+              position: "absolute",
+              bottom: 16,
+              right: 16,
+              color: "#fff",
+              fontSize: 14,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: "0 1px 4px rgba(37,99,235,0.15)",
+            }}
+            onClick={() => setEditModalVisible(true)}
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+
+      {/* Edit Availability Modal */}
+      {editModalVisible && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <form
+            className="bg-white rounded-2xl shadow p-6 w-full max-w-md space-y-4"
+            onSubmit={saveAvailability}
+          >
+            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 12, color: "#222" }}>
+              Edit Weekly Availability
+            </div>
+            <div style={{ color: "#222", marginBottom: 8 }}>
+              Select days to set availability:
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", marginBottom: 12 }}>
+              {DAY_LABELS.map(day => (
+                <button
+                  type="button"
+                  key={day}
+                  style={{
+                    backgroundColor: editDays.includes(day) ? "#22c55e" : "#e5e7eb",
+                    borderRadius: 6,
+                    padding: 8,
+                    margin: 4,
+                    color: editDays.includes(day) ? "#fff" : "#222",
+                    fontWeight: "bold",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => handleToggleEditDay(day)}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+            {editDays.map(day => (
+              <div key={day} style={{ marginBottom: 12 }}>
+                <div style={{ color: "#222", marginBottom: 4, fontWeight: 600 }}>
+                  {day} Hours:
+                </div>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <select
+                    value={editTimes[day]?.start || "09:00"}
+                    onChange={e =>
+                      setEditTimes(prev => ({
+                        ...prev,
+                        [day]: { ...prev[day], start: e.target.value }
+                      }))
+                    }
+                    style={{ width: 120, marginRight: 8 }}
+                  >
+                    {TIME_OPTIONS.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <span style={{ margin: "0 8px" }}>to</span>
+                  <select
+                    value={editTimes[day]?.end || "17:00"}
+                    onChange={e =>
+                      setEditTimes(prev => ({
+                        ...prev,
+                        [day]: { ...prev[day], end: e.target.value }
+                      }))
+                    }
+                    style={{ width: 120 }}
+                  >
+                    {TIME_OPTIONS.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2 mt-4">
+              <button
+                type="submit"
+                style={{
+                  backgroundColor: "#22c55e",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "10px 20px",
+                  fontWeight: 600,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+                disabled={savingAvailability}
+              >
+                {savingAvailability ? "Saving..." : "Save Availability"}
+              </button>
+              <button
+                type="button"
+                style={{
+                  backgroundColor: "#e5e7eb",
+                  color: "#222",
+                  borderRadius: 8,
+                  padding: "10px 20px",
+                  fontWeight: 600,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+                onClick={() => setEditModalVisible(false)}
+              >
+                Cancel
+              </button>
+            </div>
+            {availabilityError && <div style={{ color: "#dc2626", marginTop: 8 }}>{availabilityError}</div>}
+          </form>
+        </div>
+      )}
+
+      {/* Add Event Button */}
       <button onClick={() => openAddModal()} className="bg-green-600 text-white px-4 py-2 rounded mb-4 ml-2">
         + Add Event
       </button>
 
-      {/* Uniform Office Availability Box */}
-      <div className="bg-white rounded-xl shadow p-4 mb-6 max-w-xl mx-auto border border-gray-200">
-        <h2 className="text-lg font-semibold mb-4 text-gray-700">Office Availability</h2>
-        <div className="flex flex-col gap-4">
-          <div className="flex gap-4 items-center">
-            <label className="font-medium text-gray-600">
-              Start Hour:
-              <input
-                type="number"
-                min={0}
-                max={23}
-                value={officeStart}
-                onChange={e => setOfficeStart(Number(e.target.value))}
-                className="ml-2 w-16 border rounded px-2 py-1"
-              />
-            </label>
-            <label className="font-medium text-gray-600">
-              End Hour:
-              <input
-                type="number"
-                min={officeStart + 1}
-                max={24}
-                value={officeEnd}
-                onChange={e => setOfficeEnd(Number(e.target.value))}
-                className="ml-2 w-16 border rounded px-2 py-1"
-              />
-            </label>
-          </div>
-          <div>
-          <span className="font-medium text-gray-600 mr-2">Available Days:</span>
-            <div className="flex gap-2 mt-2">
-              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className={`px-3 py-2 rounded-full border transition ${
-                    availableDays.includes(i)
-                      ? "bg-blue-500 text-white border-blue-600"
-                      : "bg-gray-100 text-gray-600 border-gray-300"
-                  }`}
-                  onClick={() =>
-                    setAvailableDays(availableDays.includes(i)
-                      ? availableDays.filter(day => day !== i)
-                      : [...availableDays, i])
-                  }
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            className={`mt-4 px-4 py-2 rounded font-semibold transition ${
-              availabilityChanged
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-            onClick={handleConfirmAvailability}
-            disabled={!availabilityChanged}
-          >
-            Confirm Availability
-          </button>
-        </div>
-      </div>  
-
+      {/* Calendar Navigation */}
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => changeMonth(-1)}
@@ -404,7 +522,7 @@ export default function CalendarPage() {
         >
           ←
         </button>
-        <h1 className="text-xl font-bold text-gray-800">
+        <h1 className="text-3xl font-bold text-gray-800">
           {new Date(currentYear, currentMonth).toLocaleString("default", {
             month: "long",
             year: "numeric",
@@ -418,11 +536,14 @@ export default function CalendarPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-7 text-center font-medium text-gray-600 mb-2">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+      {/* Weekday Headers */}
+      <div className="grid grid-cols-7 text-center text-lg font-medium text-gray-600 mb-2">
+        {DAY_LABELS.map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
+
+      {/* Calendar Cells */}
       <div className="grid grid-cols-7 gap-1">
         {weeks.map((week, wi) =>
           week.map((day, di) =>
@@ -430,14 +551,26 @@ export default function CalendarPage() {
               <div
                 key={`${wi}-${di}`}
                 onClick={() => openAddModal(`${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`)}
-                className={`h-20 rounded-xl border flex flex-col items-center justify-start p-1 cursor-pointer transition ${
+                className={`rounded-xl border flex flex-col items-center justify-start p-1 cursor-pointer transition ${
                   selectedDate?.getDate() === day &&
                   selectedDate?.getMonth() === currentMonth
                     ? "bg-blue-500 text-white border-blue-600"
                     : "bg-white hover:bg-blue-50 border-gray-200"
                 }`}
+                style={{
+                  height: "120px",
+                  minHeight: "120px",
+                }}
               >
-                <span className="text-sm font-semibold">{day}</span>
+                <span
+                  className="font-semibold"
+                  style={{
+                    fontSize: "1.25rem",
+                    marginBottom: 2,
+                  }}
+                >
+                  {day}
+                </span>
                 <div className="mt-1 space-y-0.5 w-full">
                   {eventsForDate(day).slice(0, 2).map((e) => (
                     <div
@@ -453,6 +586,11 @@ export default function CalendarPage() {
                       >
                         ✕
                       </button>
+                      {e.notes && (
+                        <div className="text-xs text-green-700 mt-1 truncate">
+                          Notes: {e.notes}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {eventsForDate(day).length > 2 && (
@@ -461,40 +599,25 @@ export default function CalendarPage() {
                 </div>
               </div>
             ) : (
-              <div key={`${wi}-${di}`} className="h-20"></div>
+              <div key={`${wi}-${di}`} style={{ height: "120px", minHeight: "120px" }}></div>
             )
           )
         )}
       </div>
 
+      {/* Time Slots for Selected Date */}
       {selectedDate && (
         <div className="mt-6">
           <h2 className="text-lg font-semibold text-gray-700 mb-3">
             Time Slots for {selectedDate.toDateString()}
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {getSlotsForDate(selectedDate.toISOString().slice(0, 10)).map((slot, idx) => (
-              <div
-                key={idx}
-                className={`p-2 rounded border flex flex-col items-center ${
-                  slot.blocked
-                    ? "bg-red-100 border-red-400 text-red-700"
-                    : "bg-green-100 border-green-400 text-green-700"
-                }`}
-              >
-                <span className="font-semibold">{slot.time}</span>
-                {slot.blocked && (
-                  <span className="text-xs mt-1">
-                    Blocked by: {slot.event?.name} {slot.event?.source === "google" ? "(Google)" : ""}
-                  </span>
-                )}
-                {!slot.blocked && <span className="text-xs mt-1">Available</span>}
-              </div>
-            ))}
+            {/* You can add slot logic here if needed */}
           </div>
         </div>
       )}
 
+      {/* Add/Edit Event Modal */}
       {showEventModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <form
@@ -528,6 +651,15 @@ export default function CalendarPage() {
               value={eventForm.location}
               onChange={e => setEventForm({ ...eventForm, location: e.target.value })}
               className="w-full p-2 border rounded"
+            />
+            <textarea
+              name="notes"
+              placeholder="Notes"
+              value={eventForm.notes}
+              onChange={e => setEventForm({ ...eventForm, notes: e.target.value })}
+              className="w-full p-2 border rounded"
+              rows={3}
+              style={{ resize: "vertical" }}
             />
             <div className="flex gap-2 mt-2">
               <button
