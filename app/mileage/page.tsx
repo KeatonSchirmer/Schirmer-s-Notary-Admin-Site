@@ -7,6 +7,8 @@ type MileageEntry = {
   miles: number;
   purpose: string;
   notes?: string;
+  distance?: number;
+  time?: string;
 };
 
 export default function MileagePage() {
@@ -33,11 +35,11 @@ export default function MileagePage() {
           headers: { "X-User-Id": String(userId) },
         });
         const data = await res.json();
-        const mappedEntries = (data.entries || []).map((entry: any) => ({
+        const mappedEntries = (data.entries || []).map((entry: MileageEntry) => ({
           id: entry.id,
           date: entry.date,
-          miles: entry.distance,
-          purpose: entry.time ?? "",
+          miles: entry.distance ?? entry.miles,
+          purpose: entry.time ?? entry.purpose ?? "",
           notes: entry.notes,
         }));
         setEntries(mappedEntries);
@@ -73,10 +75,10 @@ export default function MileagePage() {
     window.open("/mileage/pdf", "_blank");
   };
 
-const totalMiles =
-  entries.length > 0
-    ? entries.reduce((sum, e) => sum + (typeof e.miles === "number" ? e.miles : 0), 0).toFixed(2)
-    : "0.00";
+  const totalMiles =
+    entries.length > 0
+      ? entries.reduce((sum, e) => sum + (typeof e.miles === "number" ? e.miles : 0), 0).toFixed(2)
+      : "0.00";
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">

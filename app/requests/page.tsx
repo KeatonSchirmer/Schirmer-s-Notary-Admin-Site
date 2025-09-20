@@ -9,6 +9,12 @@ type RequestItem = {
   status: string;
 };
 
+type RawRequest = {
+  id: number;
+  client_id: number;
+  status: string;
+};
+
 async function getClientLabel(client_id: number): Promise<string> {
   try {
     const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${client_id}`);
@@ -54,13 +60,14 @@ export default function RequestsPage() {
         const data = await res.json();
         let items: RequestItem[] = [];
         if (Array.isArray(data)) {
-          // Fetch client/company name for each booking
-          items = await Promise.all(data.map(async (req: any) => ({
-            id: req.id,
-            client_id: req.client_id,
-            name: await getClientLabel(req.client_id),
-            status: req.status,
-          })));
+          items = await Promise.all(
+            data.map(async (req: RawRequest) => ({
+              id: req.id,
+              client_id: req.client_id,
+              name: await getClientLabel(req.client_id),
+              status: req.status,
+            }))
+          );
         }
         setRequests(items);
       } catch {

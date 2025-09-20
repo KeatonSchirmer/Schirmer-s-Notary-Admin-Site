@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useGoogleLogin } from '@react-oauth/google';
 
 type EventItem = {
@@ -9,6 +9,8 @@ type EventItem = {
   location: string;
   notes?: string;
   source?: "local" | "google";
+  date?: string;
+  time?: string;
 };
 
 type GoogleCalendarEvent = {
@@ -80,13 +82,13 @@ export default function CalendarPage() {
         }
       );
       const data = await res.json();
-      const mappedEvents = (data.items as GoogleCalendarEvent[] || []).map((e) => ({
+      const mappedEvents: EventItem[] = (data.items as GoogleCalendarEvent[] || []).map((e) => ({
         id: e.id,
         name: e.summary || "No Title",
         start_date: e.start.dateTime || e.start.date || "",
         location: e.location || "",
         notes: e.description || "",
-        source: "google" as const,
+        source: "google",
       }));
       setGoogleEvents(mappedEvents);
 
@@ -171,7 +173,7 @@ export default function CalendarPage() {
   }
 
   // Clean local events fetch and handle array/object response
-  async function fetchLocalEvents() {
+  const fetchLocalEvents = useCallback(async () => {
     if (!userId) return;
     try {
       const res = await fetch(`${API_BASE}/calendar/local`, {
@@ -182,22 +184,24 @@ export default function CalendarPage() {
       });
       if (!res.ok) throw new Error("Failed to load events");
       const data = await res.json();
-      const eventArray = Array.isArray(data) ? data : (data.events || []);
+      const eventArray: EventItem[] = Array.isArray(data)
+        ? data
+        : (data.events as EventItem[]) || [];
       setEvents(
-        eventArray.map((e: any) => ({
+        eventArray.map((e) => ({
           ...e,
           start_date: e.date && e.time ? `${e.date}T${e.time}` : e.date || "",
-          source: "local" as const,
+          source: "local",
         }))
       );
     } catch {}
-  }
+  }, [userId]);
 
   useEffect(() => {
     fetchLocalEvents();
-  }, [userId]);
+  }, [userId, fetchLocalEvents]);
 
-  const mergedEvents = [...events, ...googleEvents];
+  const mergedEvents: EventItem[] = [...events, ...googleEvents];
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
@@ -227,7 +231,7 @@ export default function CalendarPage() {
     setSelectedDay(null);
   };
 
-  const eventsForDate = (day: number) => {
+  const eventsForDate = (day: number): EventItem[] => {
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     return mergedEvents.filter((e) => e.start_date.startsWith(dateStr));
   };
