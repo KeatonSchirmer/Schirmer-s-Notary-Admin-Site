@@ -30,6 +30,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     email?: string;
     company?: string;
     phone?: string;
+    company_address?: string;
   };
   const [editData, setEditData] = useState<EditData>({});
   const [editLoading, setEditLoading] = useState(false);
@@ -103,7 +104,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
         body: JSON.stringify({
           ...editData,
-          company_name: editData.company ?? client.company ?? "",
+          company_name: editData.company ?? client?.company ?? "",
           company_address: editData.company_address ?? ""
         }),
       });
