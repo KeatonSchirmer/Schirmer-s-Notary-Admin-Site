@@ -4,9 +4,29 @@ import Link from "next/link";
 
 type RequestItem = {
   id: number;
+  client_id: number;
   name: string;
   status: string;
 };
+
+async function getClientLabel(client_id: number): Promise<string> {
+  try {
+    const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${client_id}`);
+    if (!res.ok) return "Unnamed";
+    const data = await res.json();
+    if (data.company) {
+      if (typeof data.company === "object" && data.company.name) {
+        return data.company.name;
+      }
+      if (typeof data.company === "string" && data.company.trim()) {
+        return data.company.trim();
+      }
+    }
+    return data.name || "Unnamed";
+  } catch {
+    return "Unnamed";
+  }
+}
 
 export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
@@ -32,13 +52,17 @@ export default function RequestsPage() {
           },
         });
         const data = await res.json();
+        let items: RequestItem[] = [];
         if (Array.isArray(data)) {
-          setRequests(data);
-        } else if (data.requests) {
-          setRequests(data.requests);
-        } else {
-          setRequests([]);
+          // Fetch client/company name for each booking
+          items = await Promise.all(data.map(async (req: any) => ({
+            id: req.id,
+            client_id: req.client_id,
+            name: await getClientLabel(req.client_id),
+            status: req.status,
+          })));
         }
+        setRequests(items);
       } catch {
         setError("Failed to load requests");
       }
@@ -95,7 +119,9 @@ export default function RequestsPage() {
             <Link href={`/requests/${req.id}`} key={req.id + '-' + req.status}>
               <div className="bg-white p-4 rounded-2xl shadow flex justify-between items-center cursor-pointer hover:bg-gray-100">
                 <div>
-                  <span className="font-semibold">{req.name}</span>{" "}
+                  <span className="font-semibold">
+                    {req.name || "Unnamed"}
+                  </span>{" "}
                   <span className="text-gray-500">({req.status})</span>
                 </div>
                 <span className="text-blue-600">View Details</span>

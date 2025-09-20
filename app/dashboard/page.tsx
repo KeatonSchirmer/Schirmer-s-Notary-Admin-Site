@@ -71,7 +71,7 @@ export default function Dashboard() {
         if (!mileageRes.ok) throw new Error("Failed to load weekly mileage");
         const mileageData = await mileageRes.json();
         if (typeof mileageData.weekly_mileage === "number") {
-          setMileage(mileageData.weekly_mileage);
+          setMileage(mileageData.weekly_mileage.toFixed(2));
           setMileageError("");
         } else {
           setMileage(0);

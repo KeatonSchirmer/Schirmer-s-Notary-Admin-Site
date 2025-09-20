@@ -33,7 +33,15 @@ export default function MileagePage() {
           headers: { "X-User-Id": String(userId) },
         });
         const data = await res.json();
-        setEntries(data.entries || []);
+        const mappedEntries = (data.entries || []).map((entry: any) => ({
+          id: entry.id,
+          date: entry.date,
+          miles: entry.distance,
+          purpose: entry.time ?? "",
+          notes: entry.notes,
+        }));
+        setEntries(mappedEntries);
+        console.log("Mileage entries:", mappedEntries);
       } catch {
         setError("Failed to load mileage entries");
       } finally {
@@ -65,7 +73,10 @@ export default function MileagePage() {
     window.open("/mileage/pdf", "_blank");
   };
 
-  const totalMiles = entries.reduce((sum, e) => sum + e.miles, 0);
+const totalMiles =
+  entries.length > 0
+    ? entries.reduce((sum, e) => sum + (typeof e.miles === "number" ? e.miles : 0), 0).toFixed(2)
+    : "0.00";
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -91,7 +102,7 @@ export default function MileagePage() {
         ) : weeklyError ? (
           <p className="text-red-500">{weeklyError}</p>
         ) : (
-          <p className="text-xl font-semibold text-green-600">{weeklyMileage} miles</p>
+          <p className="text-xl font-semibold text-green-600">{Number(weeklyMileage ?? 0).toFixed(2)} miles</p>
         )}
       </div>
 

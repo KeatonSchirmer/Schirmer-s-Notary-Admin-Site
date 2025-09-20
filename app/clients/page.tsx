@@ -22,7 +22,7 @@ const ClientsPage: React.FC = () => {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [company, setCompany] = useState("");
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [userId, setUserId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -56,16 +56,26 @@ const ClientsPage: React.FC = () => {
       client.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const groupedClients: GroupedClients = filteredClients.reduce(
-    (acc: GroupedClients, client: Client) => {
-      const comp =
-        client.company && client.company !== "" ? client.company : client.name;
-      if (!acc[comp]) acc[comp] = [];
-      acc[comp].push(client);
-      return acc;
-    },
-    {}
-  );
+  // Group clients by company (or by their name if no company)
+  const groupedClients: GroupedClients = {};
+  const ungroupedClients: Client[] = [];
+
+  filteredClients.forEach((client) => {
+    let companyName = "";
+    if (client.company) {
+      if (typeof client.company === "object" && client.company.name) {
+        companyName = client.company.name;
+      } else if (typeof client.company === "string" && client.company.trim() !== "") {
+        companyName = client.company.trim();
+      }
+    }
+    if (companyName) {
+      if (!groupedClients[companyName]) groupedClients[companyName] = [];
+      groupedClients[companyName].push(client);
+    } else {
+      ungroupedClients.push(client);
+    }
+  });
 
   const companyNames = Object.keys(groupedClients);
 
@@ -110,43 +120,59 @@ const ClientsPage: React.FC = () => {
         className="w-full max-w-md mb-6 p-3 rounded-xl border border-gray-300 shadow-sm focus:ring-2 focus:ring-green-600 focus:outline-none"
       />
 
-      {/* Clients list */}
+      {/* Companies list */}
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : error ? (
         <p className="text-red-600">{error}</p>
-      ) : companyNames.length === 0 ? (
+      ) : companyNames.length === 0 && ungroupedClients.length === 0 ? (
         <p className="text-gray-500">No clients found.</p>
       ) : (
-        companyNames.map((company) => (
-          <section key={company} className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-700 mb-3">
-              {company}
-            </h2>
-            <div className="space-y-3">
-              {groupedClients[company].map((client) => (
-                <Link href={`/clients/${client.id}`} passHref key={client.id}>
-                  <div
-                    className="bg-white rounded-xl shadow p-4 flex justify-between items-center cursor-pointer hover:bg-green-50 transition"
-                  >
-                    <div>
-                      <p className="font-medium text-gray-800">{client.name}</p>
-                      <p className="text-sm text-gray-500">{client.email}</p>
-                    </div>
-                  </div>
-                </Link>
-              ))}
+        <div>
+          {/* Company cards with dropdown */}
+          {companyNames.map((company) => (
+            <div key={company} className="mb-6">
+              <button
+                className="w-full text-left bg-white rounded-xl shadow p-4 flex justify-between items-center cursor-pointer hover:bg-green-50 transition"
+                onClick={() => setSelectedCompany(selectedCompany === company ? null : company)}
+              >
+                <span className="text-lg font-semibold text-gray-700">{company}</span>
+                <span className="text-green-700 font-bold">
+                  {selectedCompany === company ? "▲" : "▼"}
+                </span>
+              </button>
+              {selectedCompany === company && (
+                <div className="space-y-3 mt-3">
+                  {groupedClients[company].map((client) => (
+                    <Link href={`/clients/${client.id}`} passHref key={client.id}>
+                      <div
+                        className="bg-white rounded-xl shadow p-4 flex justify-between items-center cursor-pointer hover:bg-green-100 transition"
+                      >
+                        <div>
+                          <p className="font-medium text-gray-800">{client.name}</p>
+                          <p className="text-sm text-gray-500">{client.email}</p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-          </section>
-        ))
+          ))}
+          {/* Individual client cards (no dropdown) */}
+          {ungroupedClients.map((client) => (
+            <Link href={`/clients/${client.id}`} passHref key={client.id}>
+              <div className="bg-white rounded-xl shadow p-4 flex justify-between items-center cursor-pointer hover:bg-green-100 transition mb-6">
+                <div>
+                  <span className="text-lg font-semibold text-gray-700">{client.name}</span>
+                  <p className="text-sm text-gray-500">{client.email}</p>
+                </div>
+                <span className="text-green-700 font-bold">View</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
-
-      <button
-        onClick={() => setShowClientModal(true)}
-        className="fixed bottom-6 right-6 bg-green-700 text-white px-6 py-3 rounded-full shadow-lg font-semibold hover:bg-green-800 transition"
-      >
-        + Client
-      </button>
 
       {showClientModal && (
         <div className="fixed inset-0 bg-gray-400 bg-opacity-40 flex justify-center items-center z-50">
@@ -184,33 +210,6 @@ const ClientsPage: React.FC = () => {
               className="w-full bg-gray-200 text-gray-800 py-2 rounded-lg font-medium hover:bg-gray-300 transition"
             >
               Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Client Details Modal */}
-      {selectedClient && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md">
-            <h2 className="text-lg font-bold mb-4">Client Details</h2>
-            <p className="mb-2">
-              <span className="font-semibold">Name:</span> {selectedClient.name}
-            </p>
-            <p className="mb-2">
-              <span className="font-semibold">Email:</span> {selectedClient.email}
-            </p>
-            {selectedClient.company && (
-              <p className="mb-2">
-                <span className="font-semibold">Company:</span>{" "}
-                {selectedClient.company}
-              </p>
-            )}
-            <button
-              onClick={() => setSelectedClient(null)}
-              className="w-full bg-gray-200 text-gray-800 py-2 rounded-lg font-medium hover:bg-gray-300 transition mt-4"
-            >
-              Close
             </button>
           </div>
         </div>

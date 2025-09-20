@@ -13,7 +13,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     id: string;
     name: string;
     email: string;
-    company?: string;
+    company?: string | { name?: string };
     phone?: string;
   };
   type HistoryItem = {
@@ -98,10 +98,14 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     setEditLoading(true);
     setEditError("");
     try {
-      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/contacts/contacts/${clientId}`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
-        body: JSON.stringify(editData),
+        body: JSON.stringify({
+          ...editData,
+          company_name: editData.company ?? client.company ?? "",
+          company_address: editData.company_address ?? ""
+        }),
       });
       if (res.ok) {
         setEditMode(false);
@@ -148,7 +152,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     setDeleteLoading(true);
     setEditError("");
     try {
-      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/contacts/${clientId}`, {
+      const res = await fetch(`https://schirmer-s-notary-backend.onrender.com/clients/${clientId}`, {
         method: "DELETE",
         headers: { "X-User-Id": String(userId) },
       });
@@ -160,7 +164,6 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
           const data = await res.json();
           if (data?.message) errorMsg = data.message;
         } catch {
-          // Could not parse JSON
         }
         setEditError(errorMsg);
         console.error("Delete contact error:", errorMsg);
@@ -183,14 +186,14 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
           <div className="space-y-3">
             <input
               type="text"
-              placeholder="Contact Name"
+              placeholder="Name"
               value={editData.name ?? client.name}
               onChange={e => setEditData({ ...editData, name: e.target.value })}
               className="w-full p-2 border rounded"
             />
             <input
               type="email"
-              placeholder="Contact Email"
+              placeholder="Email"
               value={editData.email ?? client.email}
               onChange={e => setEditData({ ...editData, email: e.target.value })}
               className="w-full p-2 border rounded"
@@ -229,7 +232,12 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         ) : (
           <>
             {client.company && (
-              <p className="mb-2"><span className="font-semibold">Company:</span> {client.company}</p>
+              <p className="mb-2">
+                <span className="font-semibold">Company:</span>{" "}
+                {typeof client.company === "string"
+                  ? client.company
+                  : client.company.name ?? ""}
+              </p>
             )}
             <p className="mb-2"><span className="font-semibold">Contact Name:</span> {client.name}</p>
             <p className="mb-2"><span className="font-semibold">Contact Email:</span> {client.email}</p>
@@ -313,73 +321,6 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             ))}
           </ul>
         )}
-      </div>
-      <ContactPoints contactId={client.id} />
-    </div>
-  );
-}
-
-export type ContactPoint = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-};
-
-function ContactPoints({ contactId }: { contactId: string }) {
-  const [contactPoints, setContactPoints] = useState<ContactPoint[]>([]);
-  const [newPoint, setNewPoint] = useState<Omit<ContactPoint, "id">>({ name: "", email: "", phone: "", role: "" });
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetch(`http://127.0.0.1:5000/contacts/${contactId}/contact_points`)
-      .then(res => res.json())
-      .then(data => setContactPoints(data.contact_points || []));
-  }, [contactId]);
-
-  const addContactPoint = async () => {
-    setLoading(true);
-    const res = await fetch(`http://127.0.0.1:5000/contacts/${contactId}/contact_points`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newPoint)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setContactPoints(cp => [...cp, { ...newPoint, id: data.id }]);
-      setNewPoint({ name: "", email: "", phone: "", role: "" });
-    }
-    setLoading(false);
-  };
-
-  const removeContactPoint = async (id: string) => {
-    setLoading(true);
-    const res = await fetch(`http://127.0.0.1:5000/contacts/contact_points/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setContactPoints(cp => cp.filter(p => p.id !== id));
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div style={{ marginTop: 24 }}>
-      <h3>Contact Points</h3>
-      <ul>
-        {contactPoints.map(cp => (
-          <li key={cp.id}>
-            <b>{cp.name}</b> ({cp.role || "No role"})<br />
-            Email: {cp.email || "-"} | Phone: {cp.phone || "-"}
-            <button onClick={() => removeContactPoint(cp.id)} disabled={loading} style={{ marginLeft: 8 }}>Remove</button>
-          </li>
-        ))}
-      </ul>
-      <div style={{ marginTop: 12 }}>
-        <input placeholder="Name" value={newPoint.name} onChange={e => setNewPoint({ ...newPoint, name: e.target.value })} />
-        <input placeholder="Email" value={newPoint.email} onChange={e => setNewPoint({ ...newPoint, email: e.target.value })} />
-        <input placeholder="Phone" value={newPoint.phone} onChange={e => setNewPoint({ ...newPoint, phone: e.target.value })} />
-        <input placeholder="Role" value={newPoint.role} onChange={e => setNewPoint({ ...newPoint, role: e.target.value })} />
-        <button onClick={addContactPoint} disabled={loading || !newPoint.name} style={{ marginLeft: 8 }}>Add</button>
       </div>
     </div>
   );

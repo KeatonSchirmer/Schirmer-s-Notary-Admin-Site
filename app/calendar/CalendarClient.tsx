@@ -32,13 +32,12 @@ export default function CalendarPage() {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [googleEvents, setGoogleEvents] = useState<EventItem[]>([]);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
-  // Availability states
   const [dayAvailabilities, setDayAvailabilities] = useState<DayAvailabilities>({});
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editDays, setEditDays] = useState<string[]>([]);
@@ -46,7 +45,6 @@ export default function CalendarPage() {
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
 
-  // Event modal states
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [eventForm, setEventForm] = useState<{ name: string; date: string; location: string; notes: string }>({
@@ -56,7 +54,6 @@ export default function CalendarPage() {
     notes: "",
   });
 
-  // Google login and sync
   useEffect(() => {
     const storedToken = localStorage.getItem("googleAccessToken");
     const storedExpiry = localStorage.getItem("googleAccessTokenExpiry");
@@ -103,28 +100,15 @@ export default function CalendarPage() {
           body: JSON.stringify(ge),
         });
       }
-      const res2 = await fetch(`${API_BASE}/calendar/local`, {
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": String(userId),
-        },
-      });
-      const data2 = await res2.json();
-      setEvents((data2.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
+      fetchLocalEvents();
     },
     scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
   });
 
   useEffect(() => {
-    if (!googleAccessToken) login();
-  }, [googleAccessToken, login]);
-
-  useEffect(() => {
-    const storedId = localStorage.getItem("user_id");
-    setUserId(storedId);
+    setUserId(localStorage.getItem("user_id"));
   }, []);
 
-  // Fetch availability
   useEffect(() => {
     if (!userId) return;
     fetch(`${API_BASE}/calendar/availability`, {
@@ -186,27 +170,35 @@ export default function CalendarPage() {
     setSavingAvailability(false);
   }
 
-  // Fetch events
+  // Clean local events fetch and handle array/object response
+  async function fetchLocalEvents() {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${API_BASE}/calendar/local`, {
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": String(userId),
+        },
+      });
+      if (!res.ok) throw new Error("Failed to load events");
+      const data = await res.json();
+      const eventArray = Array.isArray(data) ? data : (data.events || []);
+      setEvents(
+        eventArray.map((e: any) => ({
+          ...e,
+          start_date: e.date && e.time ? `${e.date}T${e.time}` : e.date || "",
+          source: "local" as const,
+        }))
+      );
+    } catch {}
+  }
+
   useEffect(() => {
-    async function fetchEvents() {
-      try {
-        const res = await fetch(`${API_BASE}/calendar/local`, {
-          headers: {
-            "Content-Type": "application/json",
-            "X-User-Id": String(userId),
-          },
-        });
-        if (!res.ok) throw new Error("Failed to load events");
-        const data = await res.json();
-        setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
-      } catch {}
-    }
-    if (userId) fetchEvents();
+    fetchLocalEvents();
   }, [userId]);
 
   const mergedEvents = [...events, ...googleEvents];
 
-  // Calendar logic
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
   const weeks: (number | null)[][] = [];
@@ -232,7 +224,7 @@ export default function CalendarPage() {
     }
     setCurrentMonth(newMonth);
     setCurrentYear(newYear);
-    setSelectedDate(null);
+    setSelectedDay(null);
   };
 
   const eventsForDate = (day: number) => {
@@ -240,7 +232,6 @@ export default function CalendarPage() {
     return mergedEvents.filter((e) => e.start_date.startsWith(dateStr));
   };
 
-  // Add/Edit Event Modal logic
   const openAddModal = (date?: string) => {
     setEditingEvent(null);
     setEventForm({ name: "", date: date || "", location: "", notes: "" });
@@ -302,11 +293,7 @@ export default function CalendarPage() {
       });
     }
 
-    const res = await fetch(`${API_BASE}/calendar/local`, {
-      headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
-    });
-    const data = await res.json();
-    setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
+    await fetchLocalEvents();
   };
 
   const handleDeleteEvent = async (eventId: string | number) => {
@@ -315,17 +302,21 @@ export default function CalendarPage() {
       method: "DELETE",
       headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
     });
-    const res = await fetch(`${API_BASE}/calendar/local`, {
-      headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
-    });
-    const data = await res.json();
-    setEvents((data.events || []).map((e: EventItem) => ({ ...e, source: "local" })));
+    await fetchLocalEvents();
   };
 
-  // --- Render ---
   return (
     <div className="min-h-screen bg-gray-50 p-6 pb-70">
-      {/* Office Availability Card */}
+      {!googleAccessToken && (
+        <div className="mb-6">
+          <button
+            onClick={() => login()}
+            className="bg-blue-600 text-white px-4 py-2 rounded shadow"
+          >
+            Connect Google Calendar
+          </button>
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -400,7 +391,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Edit Availability Modal */}
       {editModalVisible && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <form
@@ -509,12 +499,10 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Add Event Button */}
       <button onClick={() => openAddModal()} className="bg-green-600 text-white px-4 py-2 rounded mb-4 ml-2">
         + Add Event
       </button>
 
-      {/* Calendar Navigation */}
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => changeMonth(-1)}
@@ -536,24 +524,21 @@ export default function CalendarPage() {
         </button>
       </div>
 
-      {/* Weekday Headers */}
       <div className="grid grid-cols-7 text-center text-lg font-medium text-gray-600 mb-2">
         {DAY_LABELS.map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
 
-      {/* Calendar Cells */}
       <div className="grid grid-cols-7 gap-1">
         {weeks.map((week, wi) =>
           week.map((day, di) =>
             day ? (
               <div
                 key={`${wi}-${di}`}
-                onClick={() => openAddModal(`${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`)}
+                onClick={() => setSelectedDay(day)}
                 className={`rounded-xl border flex flex-col items-center justify-start p-1 cursor-pointer transition ${
-                  selectedDate?.getDate() === day &&
-                  selectedDate?.getMonth() === currentMonth
+                  selectedDay === day
                     ? "bg-blue-500 text-white border-blue-600"
                     : "bg-white hover:bg-blue-50 border-gray-200"
                 }`}
@@ -605,19 +590,57 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Time Slots for Selected Date */}
-      {selectedDate && (
-        <div className="mt-6">
+      {/* Show selected day's events at the bottom */}
+      {selectedDay && (
+        <div className="mt-8">
           <h2 className="text-lg font-semibold text-gray-700 mb-3">
-            Time Slots for {selectedDate.toDateString()}
+            Events for {currentYear}-{String(currentMonth + 1).padStart(2, "0")}-{String(selectedDay).padStart(2, "0")}
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {/* You can add slot logic here if needed */}
-          </div>
+          {eventsForDate(selectedDay).length === 0 ? (
+            <p className="text-gray-500">No events for this day.</p>
+          ) : (
+            <div className="space-y-3">
+              {eventsForDate(selectedDay).map((e) => (
+                <div
+                  key={e.id}
+                  className={`bg-white rounded-xl shadow p-4 flex flex-col mb-2 border-l-4 ${e.source === "google" ? "border-yellow-400" : "border-blue-400"}`}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-lg">{e.name}</span>
+                    {e.source === "google" && (
+                      <span className="text-yellow-700 font-bold ml-2">Google</span>
+                    )}
+                  </div>
+                  <div className="text-gray-600 text-sm">
+                    {e.start_date}
+                    {e.location && <> | Location: {e.location}</>}
+                  </div>
+                  {e.notes && (
+                    <div className="text-green-700 mt-1 text-sm">
+                      Notes: {e.notes}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                      onClick={() => openEditModal(e)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="bg-red-600 text-white px-3 py-1 rounded text-sm"
+                      onClick={() => handleDeleteEvent(e.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Add/Edit Event Modal */}
       {showEventModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <form
