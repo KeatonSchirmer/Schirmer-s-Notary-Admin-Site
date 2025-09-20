@@ -6,7 +6,7 @@ type Client = {
   id: string;
   name: string;
   email: string;
-  company?: string;
+  company?: string | { name?: string };
 };
 
 type GroupedClients = {
@@ -52,7 +52,11 @@ const ClientsPage: React.FC = () => {
     (client) =>
       client.name.toLowerCase().includes(search.toLowerCase()) ||
       (client.company &&
-        client.company.toLowerCase().includes(search.toLowerCase())) ||
+        (
+          (typeof client.company === "string" && client.company.toLowerCase().includes(search.toLowerCase())) ||
+          (typeof client.company === "object" && client.company.name && client.company.name.toLowerCase().includes(search.toLowerCase()))
+        )
+      ) ||
       client.email.toLowerCase().includes(search.toLowerCase())
   );
 
