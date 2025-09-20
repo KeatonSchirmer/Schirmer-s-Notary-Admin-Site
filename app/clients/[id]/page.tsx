@@ -202,7 +202,12 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             <input
               type="text"
               placeholder="Company"
-              value={editData.company ?? client.company ?? ""}
+              value={
+                editData.company ??
+                (typeof client.company === "object"
+                  ? client.company.name ?? ""
+                  : client.company ?? "")
+              }
               onChange={e => setEditData({ ...editData, company: e.target.value })}
               className="w-full p-2 border rounded"
             />
