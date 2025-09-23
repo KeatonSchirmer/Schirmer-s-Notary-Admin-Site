@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
-import { useGoogleLogin } from '@react-oauth/google';
 
 type EventItem = {
   id: string | number;
@@ -11,15 +10,6 @@ type EventItem = {
   source?: "local" | "google";
   date?: string;
   time?: string;
-};
-
-type GoogleCalendarEvent = {
-  id: string;
-  summary?: string;
-  start: { dateTime?: string; date?: string };
-  end?: { dateTime?: string; date?: string };
-  location?: string;
-  description?: string;
 };
 
 const API_BASE = "https://schirmer-s-notary-backend.onrender.com";
@@ -38,8 +28,6 @@ export default function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
-  const [googleEvents, setGoogleEvents] = useState<EventItem[]>([]);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
   const [dayAvailabilities, setDayAvailabilities] = useState<DayAvailabilities>({});
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -58,96 +46,29 @@ export default function CalendarPage() {
   });
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("googleAccessToken");
-    const storedExpiry = localStorage.getItem("googleAccessTokenExpiry");
-    if (storedToken && storedExpiry && Date.now() < Number(storedExpiry)) {
-      setGoogleAccessToken(storedToken);
-    } else {
-      localStorage.removeItem("googleAccessToken");
-      localStorage.removeItem("googleAccessTokenExpiry");
-    }
-  }, []);
-
-  const login = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setGoogleAccessToken(tokenResponse.access_token);
-      localStorage.setItem("googleAccessToken", tokenResponse.access_token);
-      localStorage.setItem(
-        "googleAccessTokenExpiry",
-        String(Date.now() + (tokenResponse.expires_in || 3600) * 1000)
-      );
-      const res = await fetch(
-        'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-        {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        }
-      );
-      const data = await res.json();
-
-      const mappedEvents: EventItem[] = [];
-      (data.items as GoogleCalendarEvent[] || []).forEach((e) => {
-        if (e.start.date && e.end?.date) {
-          // All-day multi-day event: Google end date is exclusive, so subtract one day
-          // eslint-disable-next-line prefer-const
-          let dayCursor = new Date(e.start.date);
-          const lastDay = new Date(new Date(e.end.date).getTime() - 24 * 60 * 60 * 1000);
-          while (dayCursor <= lastDay) {
-            mappedEvents.push({
-              id: e.id + "-" + dayCursor.toISOString().slice(0, 10),
-              name: e.summary || "No Title",
-              start_date: dayCursor.toISOString().slice(0, 10),
-              location: e.location || "",
-              notes: e.description || "",
-              source: "google",
-            });
-            dayCursor.setDate(dayCursor.getDate() + 1);
-          }
-        } else if (e.start.dateTime && e.end?.dateTime) {
-          // eslint-disable-next-line prefer-const
-          let dayCursor = new Date(e.start.dateTime);
-          const endDate = new Date(e.end.dateTime);
-          while (dayCursor <= endDate) {
-            mappedEvents.push({
-              id: e.id + "-" + dayCursor.toISOString().slice(0, 10),
-              name: e.summary || "No Title",
-              start_date: dayCursor.toISOString().slice(0, 10),
-              location: e.location || "",
-              notes: e.description || "",
-              source: "google",
-            });
-            dayCursor.setDate(dayCursor.getDate() + 1);
-          }
-        } else {
-          mappedEvents.push({
-            id: e.id,
-            name: e.summary || "No Title",
-            start_date: e.start.dateTime || e.start.date || "",
-            location: e.location || "",
-            notes: e.description || "",
-            source: "google",
-          });
-        }
-      });
-      setGoogleEvents(mappedEvents);
-
-      for (const ge of mappedEvents) {
-        await fetch(`${API_BASE}/calendar/google-sync`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-User-Id": String(userId),
-          },
-          body: JSON.stringify(ge),
-        });
-      }
-      fetchLocalEvents();
-    },
-    scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
-  });
-
-  useEffect(() => {
     setUserId(localStorage.getItem("user_id"));
   }, []);
+
+  // Fetch all events (local + Google) from backend
+  const fetchAllEvents = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${API_BASE}/calendar/all`, {
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": String(userId),
+        },
+      });
+      if (!res.ok) throw new Error("Failed to load events");
+      const data = await res.json();
+      // Expect backend to return merged array of EventItem
+      setEvents(data.events || []);
+    } catch {}
+  }, [userId]);
+
+  useEffect(() => {
+    fetchAllEvents();
+  }, [userId, fetchAllEvents]);
 
   useEffect(() => {
     if (!userId) return;
@@ -210,37 +131,6 @@ export default function CalendarPage() {
     setSavingAvailability(false);
   }
 
-  // Clean local events fetch and handle array/object response
-  const fetchLocalEvents = useCallback(async () => {
-    if (!userId) return;
-    try {
-      const res = await fetch(`${API_BASE}/calendar/local`, {
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": String(userId),
-        },
-      });
-      if (!res.ok) throw new Error("Failed to load events");
-      const data = await res.json();
-      const eventArray: EventItem[] = Array.isArray(data)
-        ? data
-        : (data.events as EventItem[]) || [];
-      setEvents(
-        eventArray.map((e) => ({
-          ...e,
-          start_date: e.date && e.time ? `${e.date}T${e.time}` : e.date || "",
-          source: "local",
-        }))
-      );
-    } catch {}
-  }, [userId]);
-
-  useEffect(() => {
-    fetchLocalEvents();
-  }, [userId, fetchLocalEvents]);
-
-  const mergedEvents: EventItem[] = [...events, ...googleEvents];
-
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
   const weeks: (number | null)[][] = [];
@@ -271,8 +161,7 @@ export default function CalendarPage() {
 
   const eventsForDate = (day: number): EventItem[] => {
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    // Accept both date and datetime formats
-    return mergedEvents.filter((e) => e.start_date.startsWith(dateStr));
+    return events.filter((e) => e.start_date.startsWith(dateStr));
   };
 
   // Block availability if any event exists for the selected day
@@ -319,27 +208,7 @@ export default function CalendarPage() {
     }
     setShowEventModal(false);
     setEditingEvent(null);
-
-    if (googleAccessToken) {
-      await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${googleAccessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          summary: eventForm.name,
-          location: eventForm.location,
-          description: eventForm.notes,
-          start: { dateTime: eventForm.date },
-          end: {
-            dateTime: new Date(new Date(eventForm.date).getTime() + 45 * 60 * 1000).toISOString()
-          },
-        }),
-      });
-    }
-
-    await fetchLocalEvents();
+    await fetchAllEvents();
   };
 
   const handleDeleteEvent = async (eventId: string | number) => {
@@ -348,21 +217,11 @@ export default function CalendarPage() {
       method: "DELETE",
       headers: { "Content-Type": "application/json", "X-User-Id": String(userId) },
     });
-    await fetchLocalEvents();
+    await fetchAllEvents();
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 pb-70">
-      {!googleAccessToken && (
-        <div className="mb-6">
-          <button
-            onClick={() => login()}
-            className="bg-blue-600 text-white px-4 py-2 rounded shadow"
-          >
-            Connect Google Calendar
-          </button>
-        </div>
-      )}
       <div
         style={{
           display: "flex",

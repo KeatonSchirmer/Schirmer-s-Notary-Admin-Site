@@ -14,7 +14,7 @@ type JournalEntry = {
   notes: string;
 };
 
-const API_BASE = "https://schirmer-s-notary-backend.onrender.com/";
+const API_BASE = "https://schirmer-s-notary-backend.onrender.com";
 
 export default function JournalPage() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
