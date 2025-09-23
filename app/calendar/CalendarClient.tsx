@@ -84,46 +84,41 @@ export default function CalendarPage() {
       );
       const data = await res.json();
 
-      // Multi-day Google event expansion
       const mappedEvents: EventItem[] = [];
       (data.items as GoogleCalendarEvent[] || []).forEach((e) => {
-        const start = e.start.dateTime || e.start.date || "";
-        const end = e.end?.dateTime || e.end?.date || start;
         if (e.start.date && e.end?.date) {
-          // All-day multi-day event: Google end date is exclusive, so subtract one day
-          let d = new Date(e.start.date);
+          let dayCursor = new Date(e.start.date);
           const lastDay = new Date(new Date(e.end.date).getTime() - 24 * 60 * 60 * 1000);
-          while (d <= lastDay) {
+          while (dayCursor <= lastDay) {
             mappedEvents.push({
-              id: e.id + "-" + d.toISOString().slice(0, 10),
+              id: e.id + "-" + dayCursor.toISOString().slice(0, 10),
               name: e.summary || "No Title",
-              start_date: d.toISOString().slice(0, 10),
+              start_date: dayCursor.toISOString().slice(0, 10),
               location: e.location || "",
               notes: e.description || "",
               source: "google",
             });
-            d.setDate(d.getDate() + 1);
+            dayCursor.setDate(dayCursor.getDate() + 1);
           }
         } else if (e.start.dateTime && e.end?.dateTime) {
-          // Timed multi-day event: expand for each day
-          let d = new Date(e.start.dateTime);
+          let dayCursor = new Date(e.start.dateTime);
           const endDate = new Date(e.end.dateTime);
-          while (d <= endDate) {
+          while (dayCursor <= endDate) {
             mappedEvents.push({
-              id: e.id + "-" + d.toISOString().slice(0, 10),
+              id: e.id + "-" + dayCursor.toISOString().slice(0, 10),
               name: e.summary || "No Title",
-              start_date: d.toISOString().slice(0, 10),
+              start_date: dayCursor.toISOString().slice(0, 10),
               location: e.location || "",
               notes: e.description || "",
               source: "google",
             });
-            d.setDate(d.getDate() + 1);
+            dayCursor.setDate(dayCursor.getDate() + 1);
           }
         } else {
           mappedEvents.push({
             id: e.id,
             name: e.summary || "No Title",
-            start_date: start,
+            start_date: e.start.dateTime || e.start.date || "",
             location: e.location || "",
             notes: e.description || "",
             source: "google",
