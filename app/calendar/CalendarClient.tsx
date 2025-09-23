@@ -17,6 +17,7 @@ type GoogleCalendarEvent = {
   id: string;
   summary?: string;
   start: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
   location?: string;
   description?: string;
 };
@@ -82,14 +83,53 @@ export default function CalendarPage() {
         }
       );
       const data = await res.json();
-      const mappedEvents: EventItem[] = (data.items as GoogleCalendarEvent[] || []).map((e) => ({
-        id: e.id,
-        name: e.summary || "No Title",
-        start_date: e.start.dateTime || e.start.date || "",
-        location: e.location || "",
-        notes: e.description || "",
-        source: "google",
-      }));
+
+      // Multi-day Google event expansion
+      const mappedEvents: EventItem[] = [];
+      (data.items as GoogleCalendarEvent[] || []).forEach((e) => {
+        const start = e.start.dateTime || e.start.date || "";
+        const end = e.end?.dateTime || e.end?.date || start;
+        if (e.start.date && e.end?.date) {
+          // All-day multi-day event: Google end date is exclusive, so subtract one day
+          let d = new Date(e.start.date);
+          const lastDay = new Date(new Date(e.end.date).getTime() - 24 * 60 * 60 * 1000);
+          while (d <= lastDay) {
+            mappedEvents.push({
+              id: e.id + "-" + d.toISOString().slice(0, 10),
+              name: e.summary || "No Title",
+              start_date: d.toISOString().slice(0, 10),
+              location: e.location || "",
+              notes: e.description || "",
+              source: "google",
+            });
+            d.setDate(d.getDate() + 1);
+          }
+        } else if (e.start.dateTime && e.end?.dateTime) {
+          // Timed multi-day event: expand for each day
+          let d = new Date(e.start.dateTime);
+          const endDate = new Date(e.end.dateTime);
+          while (d <= endDate) {
+            mappedEvents.push({
+              id: e.id + "-" + d.toISOString().slice(0, 10),
+              name: e.summary || "No Title",
+              start_date: d.toISOString().slice(0, 10),
+              location: e.location || "",
+              notes: e.description || "",
+              source: "google",
+            });
+            d.setDate(d.getDate() + 1);
+          }
+        } else {
+          mappedEvents.push({
+            id: e.id,
+            name: e.summary || "No Title",
+            start_date: start,
+            location: e.location || "",
+            notes: e.description || "",
+            source: "google",
+          });
+        }
+      });
       setGoogleEvents(mappedEvents);
 
       for (const ge of mappedEvents) {
@@ -233,8 +273,12 @@ export default function CalendarPage() {
 
   const eventsForDate = (day: number): EventItem[] => {
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    // Accept both date and datetime formats
     return mergedEvents.filter((e) => e.start_date.startsWith(dateStr));
   };
+
+  // Block availability if any event exists for the selected day
+  const isBlocked = selectedDay ? eventsForDate(selectedDay).some(e => e.source === "google") : false;
 
   const openAddModal = (date?: string) => {
     setEditingEvent(null);
@@ -600,6 +644,11 @@ export default function CalendarPage() {
           <h2 className="text-lg font-semibold text-gray-700 mb-3">
             Events for {currentYear}-{String(currentMonth + 1).padStart(2, "0")}-{String(selectedDay).padStart(2, "0")}
           </h2>
+          {isBlocked && (
+            <div className="text-red-600 font-bold mb-2">
+              Unavailable: Google event blocks this day.
+            </div>
+          )}
           {eventsForDate(selectedDay).length === 0 ? (
             <p className="text-gray-500">No events for this day.</p>
           ) : (
