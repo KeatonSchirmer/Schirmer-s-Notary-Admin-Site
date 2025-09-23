@@ -87,6 +87,8 @@ export default function CalendarPage() {
       const mappedEvents: EventItem[] = [];
       (data.items as GoogleCalendarEvent[] || []).forEach((e) => {
         if (e.start.date && e.end?.date) {
+          // All-day multi-day event: Google end date is exclusive, so subtract one day
+          // eslint-disable-next-line prefer-const
           let dayCursor = new Date(e.start.date);
           const lastDay = new Date(new Date(e.end.date).getTime() - 24 * 60 * 60 * 1000);
           while (dayCursor <= lastDay) {
@@ -101,6 +103,7 @@ export default function CalendarPage() {
             dayCursor.setDate(dayCursor.getDate() + 1);
           }
         } else if (e.start.dateTime && e.end?.dateTime) {
+          // eslint-disable-next-line prefer-const
           let dayCursor = new Date(e.start.dateTime);
           const endDate = new Date(e.end.dateTime);
           while (dayCursor <= endDate) {
