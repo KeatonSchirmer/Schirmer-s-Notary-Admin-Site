@@ -31,17 +31,33 @@ export default function JournalPage() {
       try {
         const res = await fetch(`${API_BASE}/journal/`);
         const data = await res.json();
-        setEntries(
-          (Array.isArray(data.entries) ? data.entries : data).map((e: any) => ({
-            id: e.id ?? 0,
-            date: e.date ?? "",
-            location: e.location ?? "",
-            signers: Array.isArray(e.signers) ? e.signers : [],
-            document_type: e.document_type ?? "",
-            id_verification: !!e.id_verification,
-            notes: e.notes ?? "",
-          }))
-        );
+        const rawEntries: unknown =
+          Array.isArray(data.entries) ? data.entries : data;
+        if (Array.isArray(rawEntries)) {
+          setEntries(
+            rawEntries.map((e): JournalEntry => ({
+              id: typeof e.id === "number" ? e.id : 0,
+              date: typeof e.date === "string" ? e.date : "",
+              location: typeof e.location === "string" ? e.location : "",
+              signers: Array.isArray(e.signers)
+                ? e.signers.map((s: unknown) => {
+                    const signer = s as Partial<Signer>;
+                    return {
+                      name: typeof signer.name === "string" ? signer.name : "",
+                      address: typeof signer.address === "string" ? signer.address : undefined,
+                      phone: typeof signer.phone === "string" ? signer.phone : undefined,
+                    };
+                  })
+                : [],
+              document_type:
+                typeof e.document_type === "string" ? e.document_type : "",
+              id_verification: !!e.id_verification,
+              notes: typeof e.notes === "string" ? e.notes : "",
+            }))
+          );
+        } else {
+          setEntries([]);
+        }
       } catch {
         setError("Failed to load journal entries.");
         setEntries([]);
